@@ -8,6 +8,9 @@ class Expression:
     def __add__(self, rhs):
         return CompositeExpression([Sum(), self, rhs])
 
+    def __neq__(self, other):
+        return not self.__eq__(other)
+
 
 class CompositeExpression(Expression, list):
     # I'm using inheritence instead of composition.  Oh well.
@@ -22,6 +25,12 @@ class Node(Expression):
 
     def repr_tree(self, args):
         return repr(self) + '(' + ', '.join([repr(arg) for arg in args]) + ')'
+
+    def __eq__(self, other):
+        return type(self) == type(other)
+
+    def __hash__(self):
+        return hash(type(self))
 
 
 class Infix(Node):
@@ -96,6 +105,12 @@ class Variable(Node):
     def __repr__(self):
         return self.name
 
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
+
 
 def makefn(clz, name=''):
     def maker(*args):
@@ -104,6 +119,8 @@ def makefn(clz, name=''):
     return maker
 
 
+multiply = makefn(Multiply)
+sum = makefn(Sum)
 equals = makefn(Equals)
 forall = makefn(ForAll)
 implies = makefn(Implies)
@@ -193,6 +210,40 @@ print(toprove)
 # in the AST, so you'd also end up with the function being a child of
 # that node.  Ok, let's do that then.
 
+
+# Returns the substitution (as dict) that makes them match, or None if
+# there's no match.  Be careful: both the empty dict (meaning there's
+# a match that works with any substitution) and None (they don't match
+# no matter what you substitue) evaluate as false in Python.
+def match(dummies, pattern, target):
+    if isinstance(pattern, Node):
+        if pattern in dummies:
+            return {pattern: target}
+        if pattern == target:
+            return {}
+        return None
+
+    assert isinstance(pattern, CompositeExpression)
+
+    # TODO: Allow something akin to *args, a pattern that matches any
+    # number of remaining args.
+    if len(pattern) != len(target):
+        return None
+
+    ret = {}
+    for p, t in zip(pattern, target):
+        m = match(dummies, p, t)
+        if m is None:
+            return None
+        assert isinstance(m, dict)
+        for k, v in m.items():
+            if k in ret:
+                # TODO: Would like to do "equivalent" here, e.g. if +
+                # is commutative, consider x + y the same as y + x.
+                if ret[k] != v:
+                    return None
+        ret.update(m)
+    return ret
 
 # Random Design Notes
 #
