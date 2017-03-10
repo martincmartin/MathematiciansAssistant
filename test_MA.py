@@ -15,40 +15,49 @@ B = var('B')
 class TestMatch(unittest.TestCase):
     def test_node(self):
         self.assertEqual(
-            match([P], P, P + Q),
+            match({P}, P, P + Q),
             {P: (P + Q)})
 
     def test_sum(self):
         self.assertEqual(
-            match([P], P + B, Q + B),
+            match({P}, P + B, Q + B),
             {P: Q})
 
     def test_different_root(self):
         self.assertIsNone(
-            match([], P + Q, P * Q))
+            match(set(), P + Q, P * Q))
 
     def test_different_len(self):
         self.assertIsNone(
-            match([], P + Q, sum(P, Q, A)))
+            match(set(), P + Q, sum(P, Q, A)))
 
     def test_simple(self):
         self.assertEqual(
-            match([P], in_(P, B), in_(P + Q, B)),
+            match({P}, in_(P, B), in_(P + Q, B)),
             {P: (P + Q)})
 
     def test_dummy_appears_twice(self):
         self.assertEqual(
-            match([P], in_(P, P), in_(P + Q, P + Q)),
+            match({P}, in_(P, P), in_(P + Q, P + Q)),
             {P: (P + Q)})
 
     def test_dummy_appears_twice2(self):
         self.assertIsNone(
-            match([P], in_(P, P), in_(P + Q, P + B)))
+            match({P}, in_(P, P), in_(P + Q, P + B)))
 
     def test_two_dimmies(self):
         self.assertEqual(
-            match([P, Q], P + Q, A + B),
+            match({P, Q}, P + Q, A + B),
             {P: A, Q: B})
+
+
+class TestTryRule(unittest.TestCase):
+    def test_definition_of_set(self):
+        self.assertEqual(
+            try_rule(set(),
+                     forall(P, iff(in_(P, B), equals(P * M, M * P))),
+                     in_(P + Q, B)),
+            equals((P + Q) * M, M * (P + Q)))
 
 
 if __name__ == '__main__':

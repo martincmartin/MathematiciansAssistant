@@ -13,6 +13,11 @@ class Expression:
 
 
 class CompositeExpression(Expression, list):
+    # We need a shorter name for this.  Just "Composite"?  That
+    # collides with the name for non-prime numbers.  "Internal"?
+    # "Tree"?  "Cons"?  "Cells"?  "List"?  In Mathematica, a list is a
+    # composite expression with head List.
+
     # I'm using inheritence instead of composition.  Oh well.
     def __repr__(self):
         assert(len(self) > 0)
@@ -31,6 +36,12 @@ class Node(Expression):
 
     def __hash__(self):
         return hash(type(self))
+
+
+# I disagree with Python's "ask forgiveness, not permission" ethos, at
+# least for this sort of mathematical pattern matching code.
+def has_head(expr, clz):
+    return isinstance(expr, CompositeExpression) and isinstance(expr[0], clz)
 
 
 class Infix(Node):
@@ -60,12 +71,14 @@ class Element(Infix):
 
 class Equivalent(Infix):
     def __init__(self):
-        Infix.__init__(self, r'\iff')
+        Infix.__init__(self, '<==>')
+#        Infix.__init__(self, r'\iff')
 
 
 class Implies(Infix):
     def __init__(self):
-        Infix.__init__(self, r'\implies')
+        Infix.__init__(self, '==>')
+#        Infix.__init__(self, r'\implies')
 
 
 class And(Infix):
@@ -142,7 +155,6 @@ def in_(left, right):
     return element(left, right)
 
 
-
 # Helpful for testing / debugging.  I should remove this at some point.
 x = var('x')
 y = var('y')
@@ -166,10 +178,6 @@ defB = forall(P, iff(in_(P, B), equals(P * M, M * P)))
 # This is what we have to prove:
 toprove = forall([P, Q], implies(and_(in_(P, B), in_(Q, B)), in_(P + Q, B)))
 
-print(leftDist)
-print(rightDist)
-print(defB)
-print(toprove)
 
 # So the idea is that we have a search problem, like GOFAI.  For
 # example, at this point, all we know about the set B is its
@@ -187,35 +195,14 @@ print(toprove)
 #
 # We start with P + Q \in B, and want to find all rules which match it.
 #
-# This is where overriding == might be killing me?  Well, I think I
-# need two diffferent kinds of equals, "node equals" and "tree
-# equals," the second one recurses.  But for testing whether a node is
-# in dummies, it would be really helpful to use "in".  In general,
-# we'll want a hash table from nodes to all expressions which contain
-# that node.  All this suggests having node objects that don't have
-# children, and having a separate list structure to put them all
-# together.  Like LISP and Mathematica...  But that's not object
-# oriented!  :) Well, maybe we don't want object oriented for the
-# structure?  If we're doing pattern matching, the tree structure is
-# pretty fundamental.  And I think all of mathematics can fit in the
-# tree structure?  For example, does LaTeX make that assumption?  Of
-# course, LaTeX only has to display math, it doesn't include
-# semantics, so it can probably cheat.
-#
-# What is node_eq used for?  Pattern matching, and that's about it I
-# guess.  So am I driving my design based on a special case?
-# Mathematica allows the "head" (what I'm calling the node) to
-# actually be a subtree.  This allows you to write f(x)(y).  In a
-# traditional programming language, you'd have a "function call" node
-# in the AST, so you'd also end up with the function being a child of
-# that node.  Ok, let's do that then.
 
 
 # Returns the substitution (as dict) that makes them match, or None if
 # there's no match.  Be careful: both the empty dict (meaning there's
 # a match that works with any substitution) and None (they don't match
-# no matter what you substitue) evaluate as false in Python.
+# no matter what you substitute) evaluate as false in Python.
 def match(dummies, pattern, target):
+    assert isinstance(dummies, set)
     if isinstance(pattern, Node):
         if pattern in dummies:
             return {pattern: target}
@@ -245,6 +232,81 @@ def match(dummies, pattern, target):
         ret.update(m)
     return ret
 
+
+# If a rule matches, transform the target according to the rule and return
+# it.  Otherwise, return None.
+def try_rule(dummies, rule, target):
+    assert isinstance(dummies, set)
+    if has_head(rule, ForAll):
+        # For "forall" we add the variables to dummies and recurse.
+        if isinstance(rule[1], Node):
+            assert rule[1] not in dummies
+            new_dummies = [rule[1]]
+        else:
+            assert dummies.isdisjoint(rule[1])
+            new_dummies = rule[1]
+
+        return try_rule(dummies.union(new_dummies), rule[2], target)
+
+    if has_head(rule, Implies):
+        # For ==> we see if we can match the RHS, and if so, we return the
+        # LHS, with appropriate substitutions and free variables.  Could do
+        # this recursively, i.e. return all possible "previous proof lines."
+        subs = match(dummies, rule[2], target)
+        if subs in None:
+            return None
+        return substitute(subs, rule[2])
+
+    if has_head(rule, Equivalent):
+        subs = match(dummies, rule[2], target)
+        if subs is not None:
+            # What to do about unsubstituted dummies??  I guess just
+            # add a ForAll at the front?
+            return substitute(subs, rule[1])
+        subs = match(dummies, rule[1], target)
+        if subs is None:
+            return None
+        return substitute(subs, rule[2])
+
+
+def substitute(subs, expr):
+    if isinstance(expr, Node):
+        return subs.get(expr, expr)
+
+    assert isinstance(expr, CompositeExpression)
+
+    return CompositeExpression([substitute(subs, e) for e in expr])
+
+    # TODO: Handle "or" and "and", e.g. A <==> should be the same as
+    # A ==> B and B ==> A.
+    #
+    # In fact, A ==> B is the same as not A or B, suggesting that for
+    # boolean expressions, if the taget is "B" and the rule is "A or
+    # B", if the Bs match we can return substituted "not A" as a
+    # possible predecessor.
+    #
+    # In fact, we could define "or" in terms of "==>" like this:
+    #
+    # \forall [P, Q], P or Q <==> (not P) ==> Q.
+    #
+    # I guess this is similar to Horn clauses, which treat ==> and
+    # "and" as the building blocks.
+
+
+s = try_rule(set(), defB, in_(P + Q, B))
+# (P + Q) * M == M * (P + Q)
+print("** Substitution from rule: " + str(s))
+
+# Next: apply the left & right distributitve laws.
+# P * M + Q * M == M * P + M * Q
+# Apply P \in B:
+# M * P + Q * M == M * P + M * Q
+
+# We could add some tautologies, like:
+# forall X: X = X
+# forall x, Y, Z: X + Y == X + Z <==> Y == Z
+
+
 # Random Design Notes
 #
 #############
@@ -260,7 +322,7 @@ def match(dummies, pattern, target):
 # stuff I'm trying to do.  So I'm ditching Sage.  Should probably go
 # with Mathematica, but will stay with a general programming language
 # as long as possible.
-#
+
 #############
 # How To Indicate Pattern Match (universally quantified) variables
 #
@@ -282,4 +344,30 @@ def match(dummies, pattern, target):
 # quantification within the rewrite rule.
 #
 # Nah, go for explicit quantification for now.
+
+#############
+# Should node have children, or should we separate node & tree structure?
+#
+# I think I need two diffferent kinds of equals, "node equals" and
+# "tree equals," the second one recurses.  But for testing whether a
+# node is in dummies, it would be really helpful to use "in".  In
+# general, we'll want a hash table from nodes to all expressions which
+# contain that node.  All this suggests having node objects that don't
+# have children, and having a separate list structure to put them all
+# together.  Like LISP and Mathematica...  But that's not object
+# oriented!  :) Well, maybe we don't want object oriented for the
+# structure?  If we're doing pattern matching, the tree structure is
+# pretty fundamental.  And I think all of mathematics can fit in the
+# tree structure?  For example, does LaTeX make that assumption?  Of
+# course, LaTeX only has to display math, it doesn't include
+# semantics, so it can probably cheat.
+#
+# What is node_eq used for?  Pattern matching, and that's about it I
+# guess.  So am I driving my design based on a special case?
+# Mathematica allows the "head" (what I'm calling the node) to
+# actually be a subtree.  This allows you to write f(x)(y).  In a
+# traditional programming language, you'd have a "function call" node
+# in the AST, so you'd also end up with the function being a child of
+# that node.  Ok, let's do that then.
+
 #############
