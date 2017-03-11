@@ -1,3 +1,8 @@
+from tokenize import *
+import io
+import token
+
+
 class Expression:
     def __mul__(self, rhs):
         return CompositeExpression([Multiply(), self, rhs])
@@ -8,11 +13,24 @@ class Expression:
     def __add__(self, rhs):
         return CompositeExpression([Sum(), self, rhs])
 
+    # I considered doing the Sage thing and overriding __eq__ and other "rich
+    # comparison operators" to return symbolic expressions.  Sage then overrides
+    # __nonzero__ to evaluate the comparison.  Sage's evaluation does search to
+    # see if things are equal, e.g. assert((x-1)^2 == x^2 - 2*x + 1).  So its
+    # compute intensive, not something you want in the inner loop of your
+    # pattern matching.  Sage also searches assumptions when comparing leaves,
+    # e.g. if you assume(x == y), then bool(x == y) evaluates to True.
+    #
+    # So instead I left __eq__ to mean syntactic equality, so it can be used
+    # during pattern matching.  And I implemented a separate parser, which
+    # allows me to have "and," "or" and "not" as infix operators, along with ==>
+    # and <==>
+
     def __neq__(self, other):
         return not self.__eq__(other)
 
 
-class CompositeExpression(Expression, list):
+class CompositeExpression(Expression, tuple):
     # We need a shorter name for this.  Just "Composite"?  That
     # collides with the name for non-prime numbers.  "Internal"?
     # "Tree"?  "Cons"?  "Cells"?  "List"?  In Mathematica, a list is a
@@ -32,7 +50,7 @@ class Node(Expression):
         return repr(self) + '(' + ', '.join([repr(arg) for arg in args]) + ')'
 
     def __eq__(self, other):
-        return type(self) == type(other)
+        return isinstance(self, type(other))
 
     def __hash__(self):
         return hash(type(self))
@@ -42,6 +60,10 @@ class Node(Expression):
 # least for this sort of mathematical pattern matching code.
 def has_head(expr, clz):
     return isinstance(expr, CompositeExpression) and isinstance(expr[0], clz)
+
+
+# Name relations after nouns or adjectives, not verbs: Equal, not Equals; Sum,
+# not Add.
 
 
 class Infix(Node):
@@ -59,9 +81,19 @@ class Multiply(Infix):
         Infix.__init__(self, '*')
 
 
+class Divide(Infix):
+    def __init__(self):
+        Infix.__init__(self, '/')
+
+
 class Sum(Infix):
     def __init__(self):
         Infix.__init__(self, '+')
+
+
+class Difference(Infix):
+    def __init__(self):
+        Infix.__init__(self, '-')
 
 
 class Element(Infix):
@@ -96,7 +128,7 @@ class Not(Node):
         return 'not'
 
 
-class Equals(Infix):
+class Equal(Infix):
     def __init__(self):
         Infix.__init__(self, '==')
 
@@ -132,15 +164,17 @@ def makefn(clz, name=''):
     return maker
 
 
+# You can use these handy functions to construct nodes, or the Parser below.
 multiply = makefn(Multiply)
 sum = makefn(Sum)
-equals = makefn(Equals)
+equal = makefn(Equal)
 forall = makefn(ForAll)
 implies = makefn(Implies)
 equivalent = makefn(Equivalent)
 element = makefn(Element)
 and_ = makefn(And, 'and_')
 or_ = makefn(Or, 'or_')
+not_ = makefn(Not, 'not_')
 
 
 def var(name):
@@ -153,6 +187,184 @@ def iff(left, right):
 
 def in_(left, right):
     return element(left, right)
+
+
+# Look!  A yak!  I think I'll shave it...
+#
+# This really belongs in a separate file.
+
+class Parser:
+    keywords = set(['in', 'and', 'or', 'not', '==>',
+                    '<==>', 'forall', 'exists'])
+
+    class_map = {
+        STAR: Multiply,
+        SLASH: Divide,
+        PLUS: Sum,
+        MINUS: Difference,
+        LESS: Equal,  # TODO
+        GREATER: Equal,  # TODO
+        EQEQUAL: Equal,
+        NOTEQUAL: Equal,  # TODO
+        LESSEQUAL: Equal,  # TODO
+        GREATEREQUAL: Equal,  # TODO
+        'in': Element,
+        'and': And,
+        'or': Or,
+        'not': Not,
+        '==>': Implies,
+        '<==>': Equivalent,
+        'forall': ForAll,
+        'exists': Exists,
+    }
+
+    def __init__(self, input):
+        # We want to peek ahead, and all our strings should be small
+        # anyway, so just turn the generator into a list.
+        tokens = list(tokenize(io.BytesIO(input.encode('utf-8')).readline))
+        self.tokens = []
+        skip = 0
+        for index, token in enumerate(tokens):
+            if token.exact_type == ENCODING:
+                continue
+
+            if skip > 0:
+                skip -= 1
+                continue
+
+            # This is a hack because we're using Python's lexer, and Python
+            # doesn't have ==> or <==>, but it does parse those into a sequence
+            # of tokens.  We should really write our own lexer, wouldn't be
+            # hard.
+            if token.exact_type == EQEQUAL and \
+               index + 1 < len(tokens) and \
+               tokens[index + 1].exact_type == GREATER:
+                # Create a single ==> token.
+                self.tokens.append(
+                    type(token)(
+                        type=NAME,
+                        string='==>',
+                        start=None,
+                        end=None,
+                        line=None))
+                skip = 1
+            elif token.exact_type == LESSEQUAL and \
+                    index + 2 < len(tokens) and \
+                    tokens[index + 1].exact_type == EQUAL and \
+                    tokens[index + 2].exact_type == GREATER:
+                # Create a single <==> token.
+                self.tokens.append(
+                    type(token)(
+                        type=NAME,
+                        string='<==>',
+                        start=None,
+                        end=None,
+                        line=None))
+                skip = 2
+
+            else:
+                self.tokens.append(token)
+
+    def accept(self, *exact_types):
+        t = self.tokens[0]
+        for exact_type in exact_types:
+            # Keywords (even Python keywords) end up as NAME types,
+            # i.e. identifiers.  But here we want to treat them special.
+            pop = False
+            if isinstance(exact_type, str):
+                assert exact_type in self.keywords
+                pop = t.string == exact_type
+            elif exact_type == NAME:
+                pop = t.exact_type == NAME and t.string not in self.keywords
+            else:
+                pop = t.exact_type == exact_type
+
+            if pop:
+                self.token = self.tokens.pop(0)
+                self.type = exact_type
+                return True
+        return False
+
+    def expect(self, exact_type):
+        t = self.tokens.pop(0)
+        if t.exact_type != exact_type:
+            if not isinstance(exact_type, str):
+                exact_type = token.tok_name[exact_type]
+            raise SyntaxError("Expected %s but got %r" % (exact_type, t))
+
+    def atom(self):
+        if self.accept(LPAR):
+            e = self.expression()
+            self.expect(RPAR)
+            return e
+        if self.accept(NAME):
+            return var(self.token.string)
+        raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
+
+    def multiplicitive(self):
+        e = self.atom()
+        while self.accept(STAR, SLASH):
+            clz = self.class_map[self.token.exact_type]
+            e = CompositeExpression([clz(), e, self.atom()])
+        return e
+
+    def additive(self):
+        e = self.multiplicitive()
+        while self.accept(PLUS, MINUS):
+            clz = self.class_map[self.token.exact_type]
+            e = CompositeExpression([clz(), e, self.multiplicitive()])
+        return e
+
+    def comparison(self):
+        e = self.additive()
+        # Allow a < b < c.
+        while self.accept(
+                LESS,
+                GREATER,
+                EQEQUAL,
+                NOTEQUAL,
+                LESSEQUAL,
+                GREATEREQUAL,
+                'in'):
+            clz = self.class_map[self.type]
+            e = CompositeExpression([clz(), e, self.additive()])
+        return e
+
+    def negation(self):
+        if self.accept('not'):
+            return CompositeExpression([Not(), self.comparison()])
+        return self.comparison()
+
+    def and_or(self):
+        e = self.negation()
+        while self.accept('and', 'or'):
+            clz = self.class_map[self.type]
+            e = CompositeExpression([clz(), e, self.negation()])
+        return e
+
+    def implies_equiv(self):
+        e = self.and_or()
+        while self.accept('==>', '<==>'):
+            clz = self.class_map[self.type]
+            e = CompositeExpression([clz(), e, self.and_or()])
+        return e
+
+    def forall_exists(self):
+        # To do this properly, we'd also need to parse lists, and I've
+        # shaved far too much yak today.
+        return self.implies_equiv()
+
+    def expression(self):
+        return self.forall_exists()
+
+    def parse(self):
+        e = self.expression()
+        self.expect(ENDMARKER)
+        return e
+
+
+def parse(input):
+    return Parser(input).parse()
 
 
 # Helpful for testing / debugging.  I should remove this at some point.
@@ -169,11 +381,11 @@ Q = var('Q')
 R = var('R')
 
 # Multiplication is distributive
-leftDist = forall([P, Q, R], equals(R * (P + Q), R * P + R * Q))
-rightDist = forall([P, Q, R], equals((P + Q) * R, P * R + Q * R))
+leftDist = forall([P, Q, R], equal(R * (P + Q), R * P + R * Q))
+rightDist = forall([P, Q, R], equal((P + Q) * R, P * R + Q * R))
 
 # This is the definition of B:
-defB = forall(P, iff(in_(P, B), equals(P * M, M * P)))
+defB = forall(P, iff(in_(P, B), equal(P * M, M * P)))
 
 # This is what we have to prove:
 toprove = forall([P, Q], implies(and_(in_(P, B), in_(Q, B)), in_(P + Q, B)))
@@ -214,7 +426,7 @@ def match(dummies, pattern, target):
 
     # TODO: Allow something akin to *args, a pattern that matches any
     # number of remaining args.
-    if len(pattern) != len(target):
+    if isinstance(target, Node) or len(pattern) != len(target):
         return None
 
     ret = {}
@@ -227,6 +439,7 @@ def match(dummies, pattern, target):
             if k in ret:
                 # TODO: Would like to do "equivalent" here, e.g. if +
                 # is commutative, consider x + y the same as y + x.
+                # This can do == on CompositeExpressions.
                 if ret[k] != v:
                     return None
         ret.update(m)
@@ -250,26 +463,40 @@ def try_rule(dummies, rule, target):
 
     if has_head(rule, Implies):
         # For ==> we see if we can match the RHS, and if so, we return the
-        # LHS, with appropriate substitutions and free variables.  Could do
-        # this recursively, i.e. return all possible "previous proof lines."
-        subs = match(dummies, rule[2], target)
-        if subs in None:
-            return None
-        return substitute(subs, rule[2])
+        # LHS, with appropriate substitutions and free variables.
+        return recursive_substitute(dummies, rule[2], rule[1], target)
 
-    if has_head(rule, Equivalent):
-        subs = match(dummies, rule[2], target)
-        if subs is not None:
-            # What to do about unsubstituted dummies??  I guess just
-            # add a ForAll at the front?
-            return substitute(subs, rule[1])
-        subs = match(dummies, rule[1], target)
-        if subs is None:
-            return None
-        return substitute(subs, rule[2])
+    if has_head(rule, Equivalent) or has_head(rule, Equal):
+        return recursive_substitute(dummies, rule[2], rule[1], target).union(
+            recursive_substitute(dummies, rule[1], rule[2], target))
+
+    return set()
+
+
+def recursive_substitute(dummies, to_match, replacement, target):
+    subs = match(dummies, to_match, target)
+    if subs is not None:
+        return {substitute(subs, replacement)}
+
+    if isinstance(target, Node):
+        return set()
+
+    result = set()
+    for index, expr in enumerate(target):
+        all_changed = recursive_substitute(
+            dummies, to_match, replacement, expr)
+        for changed in all_changed:
+            # newt = target[:index] + (changed,) + target[index+1:]
+            newt = list(target)
+            newt[index] = changed
+            result.add(CompositeExpression(newt))
+    return result
 
 
 def substitute(subs, expr):
+    # What to do about unsubstituted dummies??  I guess just add a
+    # ForAll at the front?  e.g. if you want to apply P ^ Q ==> Q,
+    # you're introducing a P.
     if isinstance(expr, Node):
         return subs.get(expr, expr)
 
@@ -310,7 +537,23 @@ print("** Substitution from rule: " + str(s))
 # Random Design Notes
 #
 #############
-# Not Using Sage
+# Sage
+#
+# Well, Sage is potentially back in the running.  Sage symbolic
+# expressions (sage.symbolic.Expression) have a base class
+# sage.structure.Element, which has a base class
+# sage.structure.SageObject, which is extensible.  Every object has a
+# "parent" field, which is a metaclass, allowing you to mix
+# expressions from different packages.
+#
+# Sage symbolic expressions are a wrapper around Pari/GP, which can do
+# symbolic differentiation.  They don't have boolean expressions or
+# first order logic, but it should be possible to add those in a way
+# that will mix with symbolic expressions.  And it should be faster,
+# since its Cython and they put a lot of effort into avoiding function
+# dispatch overhead wherever possible.
+#
+# Earlier Sage notes:
 #
 # Sage symbolic boolean expressions don't mix with sage symbolic
 # algebra expressions.  And it doesn't seem to have first order logic
@@ -348,8 +591,8 @@ print("** Substitution from rule: " + str(s))
 #############
 # Should node have children, or should we separate node & tree structure?
 #
-# I think I need two diffferent kinds of equals, "node equals" and
-# "tree equals," the second one recurses.  But for testing whether a
+# I think I need two diffferent kinds of equal, "node equal" and
+# "tree equal," the second one recurses.  But for testing whether a
 # node is in dummies, it would be really helpful to use "in".  In
 # general, we'll want a hash table from nodes to all expressions which
 # contain that node.  All this suggests having node objects that don't
@@ -371,3 +614,12 @@ print("** Substitution from rule: " + str(s))
 # that node.  Ok, let's do that then.
 
 #############
+# Types
+#
+# Even in my first example, I have two types: boolean and matrix.
+# They have different operators, so you can tell their type from
+# context, i.e. <==> is only for booleans, == is only for matricies.
+# So I haven't taught my system about types yet, but its a bit of a
+# house of cards, e.g. a rule X == X + 0 could get applied to an X
+# that happens to be boolean, or P and Q ==> P to a matrix.  I'll need
+# types before long.  How best to implement them?
