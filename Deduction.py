@@ -97,7 +97,7 @@ def substitute(subs, expr):
 
     return CompositeExpression([substitute(subs, e) for e in expr])
 
-    # TODO: Handle "or" and "and", e.g. A <==> should be the same as
+    # TODO: Handle "or" and "and", e.g. A <==> B should be the same as
     # A ==> B and B ==> A.
     #
     # In fact, A ==> B is the same as not A or B, suggesting that for
@@ -111,3 +111,88 @@ def substitute(subs, expr):
     #
     # I guess this is similar to Horn clauses, which treat ==> and
     # "and" as the building blocks.
+
+
+# For the heuristic of the path length between two nodes: Need to find
+# the common ancestor, then the length can be computed from the level
+# (depth) of the two nodes and ancestor.  To find the common ancestor,
+# we can compute "parent" links and depth, then just follow parent
+# links at the same level until we find ones that are equal.
+
+# Or, we could have a hash from id -> (level, expr).  As we do a
+# depth-first search, we keep track of the path to the root
+# (equivalent to the parent pointers).  When we find a target leaf, we
+# can query all parents to find the first one (searching backwards)
+# that is on the path to the other kind of target.  That means, when
+# we find one kind of target (either P or M), we also need to anotate
+# its path to the root to say you can get to P or M from here.  We
+# might even need the list of Ps or Ms you can get to.  Hmm.
+
+# Python doesn't have a singly linked list class, so we roll our own.
+# Wonder if a named tuple would be better: hashable, constant.
+class PathToRoot:
+    def __init__(self, node, parent):
+        self.node = node
+        self.parent = parent
+        self.depth = parent.depth + 1 if parent else 0
+
+
+def path_length(node1, node2, expr):
+    assert node1 != node2  # TODO: Handle when the nodes are the same.
+    assert isinstance(expr, Expression)
+    assert isinstance(node1, Node)
+    assert isinstance(node2, Node)
+
+    # This algorith is N * M, where N is the number of node1, and M the number
+    # of node2.  But there should be more efficient algorithms, since many
+    # leaves for the same target will have a common ancestor at some point.
+
+    target1_paths = []
+    path_length_helper(node1, expr, None, target1_paths)
+
+    target2_paths = []
+    path_length_helper(node2, expr, None, target2_paths)
+
+    for path1 in target1_paths:
+        for path2 in target2_paths:
+            depth1 = path1.depth
+            depth2 = path2.depth
+
+            # The nodes can't be the same, but could (conceiveably)
+            # compare equal.  So skip them.
+            path1 = path1.parent
+            path2 = path2.parent
+
+            # Whichever one is at a higher depth, iterate until the depths
+            # match.
+            while path1.depth > path2.depth:
+                path1 = path1.parent
+            while path2.depth > path1.depth:
+                path2 = path2.parent
+
+            while path1 != path2:
+                path1 = path1.parent
+                path2 = path2.parent
+
+            assert path1.detph == path2.depth
+
+            path_length = (depth1 - path1.depth) + (depth2 - path1.depth)
+            # Now what?
+
+
+def path_length_helper(
+        target,
+        expr,
+        parent_path_to_root,
+        paths_from_targets_to_root):
+    if expr == target:
+        paths_from_targets_to_root.append(
+            PathToRoot(expr, parent_path_to_root))
+    elif isinstance(expr, CompositeExpression):
+        path_to_root = PathToRoot(expr, parent_path_to_root)
+        for subtree in expr:
+            path_length_helper(
+                target,
+                subtree,
+                path_to_root,
+                paths_from_targets_to_root)
