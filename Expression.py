@@ -1,3 +1,7 @@
+from enum import Enum, unique
+from functools import total_ordering
+
+
 class Expression:
     def __mul__(self, rhs):
         return CompositeExpression([Multiply(), self, rhs])
@@ -59,6 +63,25 @@ def has_head(expr, clz):
 
 # Name relations after nouns or adjectives, not verbs: Equal, not Equals; Sum,
 # not Add.
+
+# This is only used for pretty-printing, not parsing, but needs to be kept in
+# sync with parser in Parser.py.
+#
+# We should only use the ordering of these, not the actual value.
+@total_ordering
+@unique
+class Precedence(Enum):
+    FORALL_EXISTS = 1
+    IMPLIES_EQUIV = 2
+    AND_OR = 3
+    NEGATION = 4
+    COMPARISON = 5
+    ADDITIVE = 6
+    MULTIPLICATIVE = 7
+    ATOM = 8
+
+    def __lt__(self, other):
+        return self.value < other.value
 
 
 class Infix(Node):

@@ -4,8 +4,6 @@ import io
 import token
 
 # Look!  A yak!  I think I'll shave it...
-#
-# This really belongs in a separate file.
 
 
 class Parser:
@@ -34,7 +32,7 @@ class Parser:
     }
 
     def __init__(self, input):
-        # We want to peek ahead, and all our strings should be small
+        # We want to peek ahead, and all our input strings should be small
         # anyway, so just turn the generator into a list.
         tokens = list(tokenize(io.BytesIO(input.encode('utf-8')).readline))
         self.tokens = []
