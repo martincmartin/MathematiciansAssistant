@@ -102,6 +102,17 @@ class TestParser(unittest.TestCase):
             implies(and_(implies(P, Q), not_(Q)), not_(P)))
 
 
+class TestRepr(unittest.TestCase):
+    def cannonical(self, expr):
+        assert isinstance(expr, str)
+        self.assertEqual(repr(ex(expr)), expr)
+
+    def test_multi_add(self):
+        self.cannonical('P * Q + R')
+
+        self.cannonical('P * (Q + R)')
+
+
 class TestMatch(unittest.TestCase):
     def test_node(self):
         self.assertEqual(

@@ -2,7 +2,31 @@ from enum import Enum, unique
 from functools import total_ordering
 
 
+# This is only used for pretty-printing, not parsing, but needs to be kept in
+# sync with parser in Parser.py.
+#
+# We should only use the ordering of these, not the actual value, because the
+# values will change as we add more operators.
+@total_ordering
+@unique
+class Precedence(Enum):
+    FORALL_EXISTS = 1
+    IMPLIES_EQUIV = 2
+    AND_OR = 3
+    NEGATION = 4
+    COMPARISON = 5
+    ADDITIVE = 6
+    MULTIPLICATIVE = 7
+    FUNCALL = 8
+    ATOM = 9
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+
 class Expression:
+    # We should consider getting rid of __mul__ and __add__.  They're used in
+    # unit tests of the parser, but would be easy to replace with functions.
     def __mul__(self, rhs):
         return CompositeExpression([Multiply(), self, rhs])
 
@@ -25,8 +49,8 @@ class Expression:
     # allows me to have "and," "or" and "not" as infix operators, along with ==>
     # and <==>
 
-    def __neq__(self, other):
-        return not self.__eq__(other)
+    def __repr__(self):
+        return self.repr_and_precedence()[0]
 
 
 class CompositeExpression(Expression, tuple):
@@ -36,7 +60,7 @@ class CompositeExpression(Expression, tuple):
     # composite expression with head List.
 
     # I'm using inheritence instead of composition.  Oh well.
-    def __repr__(self):
+    def repr_and_precedence(self):
         assert(len(self) > 0)
         return self[0].repr_tree(self[1:])
 
@@ -45,8 +69,14 @@ class Node(Expression):
     # Mathematica calls this an Atom.  In Mathematica, Head of a node is
     # its type.  Seems non-orthogonal.
 
+    def repr_and_precedence(self):
+        return (repr(self), Precedence.ATOM)
+
     def repr_tree(self, args):
-        return repr(self) + '(' + ', '.join([repr(arg) for arg in args]) + ')'
+        return (repr(self) +
+                '(' +
+                ', '.join([repr(arg) for arg in args]) +
+                ')', Precedence.FUNCALL)
 
     def __eq__(self, other):
         return isinstance(self, type(other))
@@ -64,81 +94,68 @@ def has_head(expr, clz):
 # Name relations after nouns or adjectives, not verbs: Equal, not Equals; Sum,
 # not Add.
 
-# This is only used for pretty-printing, not parsing, but needs to be kept in
-# sync with parser in Parser.py.
-#
-# We should only use the ordering of these, not the actual value.
-@total_ordering
-@unique
-class Precedence(Enum):
-    FORALL_EXISTS = 1
-    IMPLIES_EQUIV = 2
-    AND_OR = 3
-    NEGATION = 4
-    COMPARISON = 5
-    ADDITIVE = 6
-    MULTIPLICATIVE = 7
-    ATOM = 8
-
-    def __lt__(self, other):
-        return self.value < other.value
-
-
 class Infix(Node):
-    def __init__(self, name):
+    def __init__(self, name, precedence):
+        assert isinstance(precedence, Precedence)
         self.name = name
         self.name_with_spaces = ' ' + name + ' '
+        self.precedence = precedence
+
+    def wrap(self, child_repr_and_precedence):
+        rep, child_prec = child_repr_and_precedence
+        return rep if child_prec > self.precedence else '(' + rep + ')'
 
     def repr_tree(self, args):
-        return "(" + self.name_with_spaces.join([str(arg)
-                                                 for arg in args]) + ")"
+        return (self.name_with_spaces.join(
+            [self.wrap(arg.repr_and_precedence()) for arg in args]),
+            self.precedence)
 
 
 class Multiply(Infix):
     def __init__(self):
-        Infix.__init__(self, '*')
+        Infix.__init__(self, '*', Precedence.MULTIPLICATIVE)
 
 
 class Divide(Infix):
     def __init__(self):
-        Infix.__init__(self, '/')
+        Infix.__init__(self, '/', Precedence.MULTIPLICATIVE)
 
 
 class Sum(Infix):
     def __init__(self):
-        Infix.__init__(self, '+')
+        Infix.__init__(self, '+', Precedence.ADDITIVE)
 
 
 class Difference(Infix):
     def __init__(self):
-        Infix.__init__(self, '-')
+        Infix.__init__(self, '-', Precedence.ADDITIVE)
 
 
 class Element(Infix):
     def __init__(self):
-        Infix.__init__(self, r'\in')
+        Infix.__init__(self, r'\in', Precedence.COMPARISON)
 
 
 class Equivalent(Infix):
     def __init__(self):
-        Infix.__init__(self, '<==>')
+        Infix.__init__(self, '<==>', Precedence.IMPLIES_EQUIV)
 #        Infix.__init__(self, r'\iff')
 
 
 class Implies(Infix):
     def __init__(self):
-        Infix.__init__(self, '==>')
+        Infix.__init__(self, '==>', Precedence.IMPLIES_EQUIV)
 #        Infix.__init__(self, r'\implies')
 
 
 class And(Infix):
     def __init__(self):
-        Infix.__init__(self, 'and')
+        Infix.__init__(self, 'and', Precedence.AND_OR)
 
 
 class Or(Infix):
     def __init__(self):
-        Infix.__init__(self, 'or')
+        Infix.__init__(self, 'or', Precedence.AND_OR)
 
 
 class Not(Node):
@@ -148,7 +165,7 @@ class Not(Node):
 
 class Equal(Infix):
     def __init__(self):
-        Infix.__init__(self, '==')
+        Infix.__init__(self, '==', Precedence.COMPARISON)
 
 
 class ForAll(Node):
