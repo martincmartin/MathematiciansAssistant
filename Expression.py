@@ -117,7 +117,7 @@ class Multiply(Infix):
 
 
 class Divide(Infix):
-    def __init__(self):
+    def __init__(self):  # pragma: no cover
         Infix.__init__(self, '/', Precedence.MULTIPLICATIVE)
 
 
@@ -127,7 +127,7 @@ class Sum(Infix):
 
 
 class Difference(Infix):
-    def __init__(self):
+    def __init__(self):  # pragma: no cover
         Infix.__init__(self, '-', Precedence.ADDITIVE)
 
 
@@ -159,7 +159,7 @@ class Or(Infix):
 
 
 class Not(Node):
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return 'not'
 
 
@@ -169,12 +169,12 @@ class Equal(Infix):
 
 
 class ForAll(Node):
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return r'\forall'
 
 
 class Exists(Node):
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return r'\exists'
 
 
@@ -186,7 +186,7 @@ class Variable(Node):
         return self.name
 
     def __eq__(self, other):
-        return self.name == other.name
+        return isinstance(other, Variable) and self.name == other.name
 
     def __hash__(self):
         return hash(self.name)

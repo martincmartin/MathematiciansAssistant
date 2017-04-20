@@ -100,7 +100,7 @@ class Parser:
 
     def expect(self, exact_type):
         t = self.tokens.pop(0)
-        if t.exact_type != exact_type:
+        if t.exact_type != exact_type:  # pragma: no cover
             if not isinstance(exact_type, str):
                 exact_type = token.tok_name[exact_type]
             raise SyntaxError("Expected %s but got %r" % (exact_type, t))

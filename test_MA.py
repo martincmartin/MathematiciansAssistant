@@ -17,6 +17,7 @@ Q = var('Q')
 R = var('R')
 A = var('A')
 B = var('B')
+M = var('M')
 
 
 def ex(input):
@@ -41,7 +42,7 @@ class TestParser(unittest.TestCase):
     def test_mult3(self):
         self.assertEqual(ex('P*(Q*R)'), P * (Q * R))
 
-    def test_mult3(self):
+    def test_mult4(self):
         self.assertEqual(ex('(P*Q)*R'), (P * Q) * R)
 
     def test_add_mult(self):
@@ -213,5 +214,26 @@ class TestTryRule(unittest.TestCase):
              ex('P + (M * P + Q * M) == P + (M * P + M * Q)')})
 
 
-if __name__ == '__main__':
+class TestPathLength(unittest.TestCase):
+    # Modifies inputs (sorts them).
+    def assert_path_length_result(self, actual, expected):
+        # Make sure its in order by the first argument.
+        for i in range(len(actual) - 1):
+            self.assertLessEqual(actual[i][0], actual[i + 1][0])
+
+        self.assertEqual(actual.sort(key=lambda x: (x[0], x.id())),
+                         expected.sort(key=lambda x: (x[0], x.id())))
+
+    def test_simple(self):
+        self.assertEqual(
+            path_length(P, M, ex('(P + Q) * M == M * (P + Q)')),
+            [(3, P, M), (3, P, M), (5, P, M), (5, P, M)])
+
+        #         ===
+        #     *         *
+        #   +   M     M   +
+        # P   Q         P   Q
+
+
+if __name__ == '__main__':  # pragma: no cover
     unittest.main()

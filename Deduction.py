@@ -118,7 +118,7 @@ def substitute(subs, expr):
 # (depth) of the two nodes and ancestor.  To find the common ancestor,
 # we can compute "parent" links and depth, then just follow parent
 # links at the same level until we find ones that are equal.
-
+#
 # Or, we could have a hash from id -> (level, expr).  As we do a
 # depth-first search, we keep track of the path to the root
 # (equivalent to the parent pointers).  When we find a target leaf, we
@@ -136,10 +136,15 @@ class PathToRoot:
         self.parent = parent
         self.depth = parent.depth + 1 if parent else 0
 
+    def __repr__(self):  # pragma: no cover
+        return repr(id(self)) + ": " + repr(self.node) + \
+            " (" + repr(self.depth) + ") -> " + repr(self.parent)
+
 
 def path_length(node1, node2, expr):
     assert node1 != node2  # TODO: Handle when the nodes are the same.
     assert isinstance(expr, Expression)
+    # Only leaves for now.
     assert isinstance(node1, Node)
     assert isinstance(node2, Node)
 
@@ -147,39 +152,45 @@ def path_length(node1, node2, expr):
     # of node2.  But there should be more efficient algorithms, since many
     # leaves for the same target will have a common ancestor at some point.
 
+    # First, get all paths from root to the targets.
     target1_paths = []
     path_length_helper(node1, expr, None, target1_paths)
 
     target2_paths = []
     path_length_helper(node2, expr, None, target2_paths)
 
+    # Next, for each pair of targets, find the common ancestor and calculate the
+    # depth.
+    ret = []
     for path1 in target1_paths:
         for path2 in target2_paths:
-            depth1 = path1.depth
-            depth2 = path2.depth
-
-            # The nodes can't be the same, but could (conceiveably)
-            # compare equal.  So skip them.
-            path1 = path1.parent
-            path2 = path2.parent
+            thing1 = path1.parent
+            thing2 = path2.parent
 
             # Whichever one is at a higher depth, iterate until the depths
             # match.
-            while path1.depth > path2.depth:
-                path1 = path1.parent
-            while path2.depth > path1.depth:
-                path2 = path2.parent
+            while thing1.depth > thing2.depth:
+                thing1 = thing1.parent
+            while thing2.depth > thing1.depth:
+                thing2 = thing2.parent
 
-            while path1 != path2:
-                path1 = path1.parent
-                path2 = path2.parent
+            # Now iterate until we find the common ancestor.
+            while id(thing1.node) != id(thing2.node):
+                thing1 = thing1.parent
+                thing2 = thing2.parent
 
-            assert path1.detph == path2.depth
+            assert thing1.depth == thing2.depth
 
-            path_length = (depth1 - path1.depth) + (depth2 - path1.depth)
-            # Now what?
+            path_len = (path1.depth - thing1.depth) + \
+                (path2.depth - thing1.depth)
+            ret.append((path_len, path1.node, path2.node))
+    # Sort by path_len.
+    ret.sort(key=lambda x: x[0])
+    return ret
 
 
+# Appends to paths_from_targest_to_root, the paths from exp to all nodes which
+# == target, with parent_path_to_root pre-pended.
 def path_length_helper(
         target,
         expr,
