@@ -11,6 +11,7 @@ import unittest
 from Expression import *
 import Parser
 from Deduction import *
+import tokenize
 
 P = var('P')
 Q = var('Q')
@@ -32,6 +33,10 @@ class TestParser(unittest.TestCase):
     def test_malformed2(self):
         with self.assertRaises(SyntaxError):
             ex('P Q')
+
+    def test_malformed3(self):
+        with self.assertRaises(tokenize.TokenError):
+            ex('( P')
 
     def test_mult(self):
         self.assertEqual(ex('P*Q'), P * Q)
@@ -77,6 +82,11 @@ class TestParser(unittest.TestCase):
             ex('not P and Q'),
             and_(not_(P), Q))
 
+    def test_not3(self):
+        self.assertEqual(
+            ex('P or not Q'),
+            or_(P, not_(Q)))
+
     def test_implies(self):
         self.assertEqual(
             ex('not P or Q ==> A and B'),
@@ -108,10 +118,27 @@ class TestRepr(unittest.TestCase):
         assert isinstance(expr, str)
         self.assertEqual(repr(ex(expr)), expr)
 
-    def test_multi_add(self):
+    def test_mult_add(self):
         self.cannonical('P * Q + R')
 
         self.cannonical('P * (Q + R)')
+
+    def test_not(self):
+        self.cannonical('not P')
+
+    def test_forall(self):
+        self.assertEqual(repr(
+            forall(P, ex('P ==> P'))),
+            '\\forall(P, P ==> P)')
+
+        self.assertEqual(repr(
+            forall([P, Q], ex('P + Q == Q + P'))),
+            '\\forall([P, Q], P + Q == Q + P)')
+
+    def test_exists(self):
+        self.assertEqual(repr(
+            exists(A, ex('A + A == A'))),
+            '\\exists(A, A + A == A)')
 
 
 class TestMatch(unittest.TestCase):
@@ -156,62 +183,83 @@ class TestMatch(unittest.TestCase):
 class TestTryRule(unittest.TestCase):
     def test_doesnt_match(self):
         self.assertEqual(
-            try_rule(set(),
-                     forall([P, Q, R], ex('(P + Q) * R == P * R + Q * R')),
-                     ex('P + Q in B')),
+            try_rule(forall([P, Q, R], ex('(P + Q) * R == P * R + Q * R')),
+                     ex('P + Q in B'),
+                     True),  # backwards
             set())
 
     def test_modus_tollens(self):
         self.assertEqual(
-            try_rule(set(),
-                     forall([P, Q, R], ex('((P ==> Q) and not Q) ==> not P')),
-                     ex('not B')),
+            try_rule(forall([P, Q], ex('((P ==> Q) and not Q) ==> not P')),
+                     ex('not B'),
+                     True),  # backwards
             {ex('(B ==> Q) and not Q')})
+
+    def test_modus_ponens(self):
+        self.assertEqual(
+            try_rule(forall([P, Q], ex('((P ==> Q) and P) ==> Q')),
+                     ex('(P ==> Q) and P'),
+                     False),  # not backwards, i.e. forwards
+            {ex('Q')})
 
     def test_definition_of_set(self):
         self.assertEqual(
-            try_rule(set(),
-                     forall(P, ex("P in B <==> P * M == M * P")),
-                     ex("P + Q in B")),
+            try_rule(forall(P, ex("P in B <==> P * M == M * P")),
+                     ex("P + Q in B"),
+                     True),  # backwards
             {ex('(P + Q) * M == M * (P + Q)')})
 
     def test_distribute_right(self):
         self.assertEqual(
-            try_rule(set(),
-                     forall([P, Q, R], ex('(P + Q) * R == P * R + Q * R')),
-                     ex('(P + Q) * M == M * (P + Q)')),
+            try_rule(forall([P, Q, R], ex('(P + Q) * R == P * R + Q * R')),
+                     ex('(P + Q) * M == M * (P + Q)'),
+                     True),  # backwards
             {ex('P * M + Q * M == M * (P + Q)')})
 
     def test_distribute_left(self):
         self.assertEqual(
-            try_rule(set(),
-                     forall([P, Q, R], ex('R * (P + Q) == R * P + R * Q')),
-                     ex('P * M + Q * M == M * (P + Q)')),
+            try_rule(forall([P, Q, R], ex('R * (P + Q) == R * P + R * Q')),
+                     ex('P * M + Q * M == M * (P + Q)'),
+                     True),  # backwards
             {ex('P * M + Q * M == M * P + M * Q')})
 
     def test_known_property_of_P(self):
         self.assertEqual(
-            try_rule(set(),
-                     ex('P * M == M * P'),
-                     ex('P * M + Q * M == M * P + M * Q')),
+            try_rule(ex('P * M == M * P'),
+                     ex('P * M + Q * M == M * P + M * Q'),
+                     True),  # backwards
             {ex('M * P + Q * M == M * P + M * Q'),
              ex('P * M + Q * M == P * M + M * Q')})
 
     def test_known_property_of_Q(self):
         self.assertEqual(
-            try_rule(set(),
-                     ex('Q * M == M * Q'),
-                     ex('P * M + Q * M == M * P + M * Q')),
+            try_rule(ex('Q * M == M * Q'),
+                     ex('P * M + Q * M == M * P + M * Q'),
+                     True),  # backwards
             {ex('P * M + M * Q == M * P + M * Q'),
              ex('P * M + Q * M == M * P + Q * M')})
 
     def test_cancel_both_sides(self):
         self.assertEqual(
-            try_rule(set(),
-                     forall([P, Q, R], ex('P + Q == P + R <==> Q == R')),
-                     ex('M * P + Q * M == M * P + M * Q')),
+            try_rule(forall([P, Q, R], ex('P + Q == P + R <==> Q == R')),
+                     ex('M * P + Q * M == M * P + M * Q'),
+                     True),  # backwards
             {ex('Q * M == M * Q'),
              ex('P + (M * P + Q * M) == P + (M * P + M * Q)')})
+
+    def test_no_match(self):
+        self.assertEqual(
+            try_rule(forall(P, ex('P or not P')),
+                     ex('A and B'),
+                     True),  # backwards
+            set())
+
+    def test_match_under_match(self):
+        self.assertEqual(
+            try_rule(forall([A, B], ex('A + B == B + A')),
+                     ex('X + Y + Z'),
+                     True),  # backwards
+            {ex('Z + (X + Y)'), ex('Y + X + Z')})
 
 
 class TestPathLength(unittest.TestCase):
@@ -221,11 +269,11 @@ class TestPathLength(unittest.TestCase):
         for i in range(len(actual) - 1):
             self.assertLessEqual(actual[i][0], actual[i + 1][0])
 
-        self.assertEqual(actual.sort(key=lambda x: (x[0], x.id())),
-                         expected.sort(key=lambda x: (x[0], x.id())))
+        self.assertEqual(actual.sort(key=lambda x: (x[0], id(x))),
+                         expected.sort(key=lambda x: (x[0], id(x))))
 
     def test_simple(self):
-        self.assertEqual(
+        self.assert_path_length_result(
             path_length(P, M, ex('(P + Q) * M == M * (P + Q)')),
             [(3, P, M), (3, P, M), (5, P, M), (5, P, M)])
 
@@ -233,6 +281,11 @@ class TestPathLength(unittest.TestCase):
         #     *         *
         #   +   M     M   +
         # P   Q         P   Q
+
+    def test_simple2(self):
+        self.assert_path_length_result(
+            path_length(M, P, ex('(P + Q) * M == M * (P + Q)')),
+            [(3, M, P), (3, M, P), (5, M, P), (5, M, P)])
 
 
 if __name__ == '__main__':  # pragma: no cover

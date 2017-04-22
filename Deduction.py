@@ -1,13 +1,62 @@
 from Expression import *
 
-# Returns the substitution (as dict) that makes them match, or None if
-# there's no match.  Be careful: both the empty dict (meaning there's
-# a match that works with any substitution) and None (they don't match
-# no matter what you substitute) evaluate as false in Python.
 
+# Next steps: See "Meta thoughts on the first Dummit problem" in the google doc.
+#
+# Starting with "P + Q in B," the only rule we can apply is the definition of B,
+# so that's easy.  :)  That gives (P + Q) * M == M * (P + Q).
+#
+# At this point, we can't just use a blind search, since we can always apply
+# x == y <==> x + z == y + z for any z, so we have an infinite search space.  We
+# can also apply the left and right distributed rules.  And the definition of B,
+# the inverse of what we just did, which is pointless.
+#
+# We have the path_length, which we can use for the distributed rule.
+#
+# We know (or can add a rule) that there exists P and Q in 2x2 matricies such
+# that P * Q != Q * P.  So that suggests that "M" is special, i.e. we need to
+# use the premises P in B and Q in B.  Perhaps, for this first problem, we can
+# skip that and assume that the premesies are relevant?  Then the question
+# becomes, given "(P + Q) * M == M * (P + Q)" and (say) "P in B", how do we find
+# a path that "connects" them?
+
+# The question is, how much do I want to bite off for this first question, and
+# how much do I leave for later?
+#
+# 1. I don't want to blindly generate all possible next trees and evaluate them.
+# Instead, I want to choose the rule before trying it.  I also want to choose
+# which subtree its applied to using heuristics.
+#
+# 2. I'm happy to have a simple rule that says "always try the premesis first."
+# It could even be manual, i.e. I just hard code trying the premises.
+#
+# 3. We want to be able to work both forward and backward, i.e. from premises to
+# conclusions, as well as from conclusions to premesis.
+
+# try_rule() tries to apply the rule at all possible spots and, for == and <==>,
+# both the LHS and RHS.  That's not what we want.  Don't want
+# recursive_substitute() either.  match() and substitute() can help though.
+#
+# As for trying the definition of B: maybe that one should always be first?
+# Something like "try the information that comes in the problem before more
+# general information."  Then that one could reasonably be tried at all
+# locations.
 
 def match(dummies, pattern, target):
+    """Matches "pattern" against "target"s root, i.e. not recursively.  "dummies" is
+    the set of Nodes in "pattern" that are allowed to match any sub
+    expression. (TODO: have types for dummies.)  Returns the substitution, as
+    dict, that makes them match, or None if there's no match.  Be careful: both
+    the empty dict (meaning there's a match that works with any substitution)
+    and None (they don't match no matter what you substitute) evaluate as false
+    in Python.
+
+    dummies: the set of variables in "pattern" that can match any sub expression.
+
+    """
+
     assert isinstance(dummies, set)
+
     if isinstance(pattern, Node):
         if pattern in dummies:
             return {pattern: target}
@@ -27,7 +76,6 @@ def match(dummies, pattern, target):
         m = match(dummies, p, t)
         if m is None:
             return None
-        assert isinstance(m, dict)
         for k, v in m.items():
             if k in ret:
                 # TODO: Would like to do "equivalent" here, e.g. if +
@@ -39,10 +87,18 @@ def match(dummies, pattern, target):
     return ret
 
 
-# If a rule matches, transform the target according to the rule and return
-# it.  Otherwise, return None.
-def try_rule(dummies, rule, target):
+# Main entry point into deduction (for now).
+def try_rule(rule, target, backwards):
+    return try_rule_recursive(set(), rule, target, backwards)
+
+
+def try_rule_recursive(dummies, rule, target, backwards):
+    """Try to apply "rule" to all subexpressions of "target", and return a set of
+    the transformed expressions, one for each subtree where it applies.
+    """
     assert isinstance(dummies, set)
+    assert isinstance(backwards, bool)
+
     if has_head(rule, ForAll):
         # For "forall" we add the variables to dummies and recurse.
         if isinstance(rule[1], Node):
@@ -52,12 +108,21 @@ def try_rule(dummies, rule, target):
             assert dummies.isdisjoint(rule[1])
             new_dummies = rule[1]
 
-        return try_rule(dummies.union(new_dummies), rule[2], target)
+        return try_rule_recursive(
+            dummies.union(new_dummies),
+            rule[2],
+            target,
+            backwards)
 
     if has_head(rule, Implies):
-        # For ==> we see if we can match the RHS, and if so, we return the
-        # LHS, with appropriate substitutions and free variables.
-        return recursive_substitute(dummies, rule[2], rule[1], target)
+        # For ==>, if we're working backwards from the conclusion, we see if we
+        # can match the RHS, and if so, we return the LHS, with appropriate
+        # substitutions and free variables.  If we're working forwards, we match
+        # the LHS and substitue on the RHS.
+        if backwards:
+            return recursive_substitute(dummies, rule[2], rule[1], target)
+        else:
+            return recursive_substitute(dummies, rule[1], rule[2], target)
 
     if has_head(rule, Equivalent) or has_head(rule, Equal):
         return recursive_substitute(dummies, rule[2], rule[1], target).union(
@@ -67,28 +132,40 @@ def try_rule(dummies, rule, target):
 
 
 def recursive_substitute(dummies, to_match, replacement, target):
-    subs = match(dummies, to_match, target)
-    if subs is not None:
-        return {substitute(subs, replacement)}
+    """Tries to match the rule "to_match" to all subexpressions of "target".
 
-    if isinstance(target, Node):
-        return set()
+    Returns a (possibly empty) set().
+
+    dummies: the set of variables in replacement that will be set to things in
+    to_match."""
+    assert isinstance(dummies, set)
 
     result = set()
+
+    subs = match(dummies, to_match, target)
+    if subs is not None:
+        result.add(substitute(subs, replacement))
+
+    if isinstance(target, Node):
+        return result
+
     for index, expr in enumerate(target):
         all_changed = recursive_substitute(
             dummies, to_match, replacement, expr)
         for changed in all_changed:
-            # newt = target[:index] + (changed,) + target[index+1:]
-            newt = list(target)
-            newt[index] = changed
-            result.add(CompositeExpression(newt))
+            # new_target = target[:index] + (changed,) + target[index+1:]
+            new_target = list(target)
+            new_target[index] = changed
+            result.add(CompositeExpression(new_target))
     return result
 
 
 def substitute(subs, expr):
+    """Given an expression, and a hash from vars to subexpressions, substitute the
+    subexspressions into the vars."""
+    assert isinstance(subs, dict)
     # What to do about unsubstituted dummies??  I guess just add a
-    # ForAll at the front?  e.g. if you want to apply P ^ Q ==> Q,
+    # ForAll at the front?  e.g. if you want to apply P ^ Q ==> Q backwards,
     # you're introducing a P.
     if isinstance(expr, Node):
         return subs.get(expr, expr)
@@ -136,11 +213,9 @@ class PathToRoot:
         self.parent = parent
         self.depth = parent.depth + 1 if parent else 0
 
-    def __repr__(self):  # pragma: no cover
-        return repr(id(self)) + ": " + repr(self.node) + \
-            " (" + repr(self.depth) + ") -> " + repr(self.parent)
 
-
+# Returns the number of edgues between node1 and node2.  For example, in
+# M * (P + Q), there are 3 edges between M and P: M -> *, * -> + and + -> P.
 def path_length(node1, node2, expr):
     assert node1 != node2  # TODO: Handle when the nodes are the same.
     assert isinstance(expr, Expression)

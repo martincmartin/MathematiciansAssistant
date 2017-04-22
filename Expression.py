@@ -1,3 +1,13 @@
+# Notes in google docs, "How do you discover / learn algebra?"
+
+# Possible yak shaving tasks:
+# - Implement more operators, including parsing & printing.
+# - Implement integer literals, including parsing & printing.
+# - DRY the parser, at least the Infix part.
+# - Write tests for the "pragma: no cover" comments in this source file
+#   (Expression.py), then remove the comments.
+
+
 from enum import Enum, unique
 from functools import total_ordering
 
@@ -72,6 +82,7 @@ class Node(Expression):
     def repr_and_precedence(self):
         return (repr(self), Precedence.ATOM)
 
+    # Currently, our parser can't generate these.
     def repr_tree(self, args):
         return (repr(self) +
                 '(' +
@@ -83,6 +94,11 @@ class Node(Expression):
 
     def __hash__(self):
         return hash(type(self))
+
+    # Handy utilitiy function used by repr_tree in some children.
+    def wrap(self, child_repr_and_precedence):
+        rep, child_prec = child_repr_and_precedence
+        return rep if child_prec > self.precedence else '(' + rep + ')'
 
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
@@ -101,13 +117,23 @@ class Infix(Node):
         self.name_with_spaces = ' ' + name + ' '
         self.precedence = precedence
 
-    def wrap(self, child_repr_and_precedence):
-        rep, child_prec = child_repr_and_precedence
-        return rep if child_prec > self.precedence else '(' + rep + ')'
-
     def repr_tree(self, args):
         return (self.name_with_spaces.join(
             [self.wrap(arg.repr_and_precedence()) for arg in args]),
+            self.precedence)
+
+
+class Prefix(Node):
+    def __init__(self, name, precedence):
+        assert isinstance(precedence, Precedence)
+        self.name = name
+        self.name_with_space = name + ' '
+        self.precedence = precedence
+
+    def repr_tree(self, args):
+        assert len(args) == 1
+        return (
+            self.name_with_space + self.wrap(args[0].repr_and_precedence()),
             self.precedence)
 
 
@@ -158,9 +184,9 @@ class Or(Infix):
         Infix.__init__(self, 'or', Precedence.AND_OR)
 
 
-class Not(Node):
-    def __repr__(self):  # pragma: no cover
-        return 'not'
+class Not(Prefix):
+    def __init__(self):
+        Prefix.__init__(self, 'not', Precedence.NEGATION)
 
 
 class Equal(Infix):
@@ -169,12 +195,12 @@ class Equal(Infix):
 
 
 class ForAll(Node):
-    def __repr__(self):  # pragma: no cover
+    def __repr__(self):
         return r'\forall'
 
 
 class Exists(Node):
-    def __repr__(self):  # pragma: no cover
+    def __repr__(self):
         return r'\exists'
 
 
@@ -204,6 +230,7 @@ multiply = makefn(Multiply)
 sum = makefn(Sum)
 equal = makefn(Equal)
 forall = makefn(ForAll)
+exists = makefn(Exists)
 implies = makefn(Implies)
 equivalent = makefn(Equivalent)
 element = makefn(Element)
