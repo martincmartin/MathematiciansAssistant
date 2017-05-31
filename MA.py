@@ -21,12 +21,6 @@ P = var('P')
 Q = var('Q')
 R = var('R')
 
-# A basic rule about + and ==.  It's interesting that this rule is already
-# embedded in the pattern matching / substitution engine, but not in this
-# explicit form: if you have a rule 'y == z', and your target is 'x + y', it
-# will transform it to 'x + z', yet without the following rule it can't
-# manipulate x + y == x + z.
-add_to_both_sizes = forall([x, y, z], ex('y == z <==> x + y == x + z'))
 
 # Multiplication is distributive
 left_dist = forall([P, Q, R], ex('R * (P + Q) == R * P + R * Q'))
@@ -57,7 +51,7 @@ to_prove = forall([P, Q], ex('P in B and Q in B ==> P + Q in B'))
 #
 
 
-s = try_rule(set(), defB, in_(P + Q, B))
+s = try_rule(defB, in_(P + Q, B), True)
 # (P + Q) * M == M * (P + Q)
 print("** Substitution from rule: " + str(s))
 
@@ -69,6 +63,40 @@ print("** Substitution from rule: " + str(s))
 # We could add some tautologies, like:
 # forall X: X = X
 # forall x, Y, Z: X + Y == X + Z <==> Y == Z
+
+# So, what we're calling 'rules' here aren't actually rules but axioms,
+# i.e. within the context of this problem, they're like premeses.  The only
+# actual rules we have at the moment are modus ponens and 'equal substitution.'
+
+backward_rules = [defB, left_dist, right_dist]
+forward_rules = [defB, left_dist, right_dist]
+
+premises = [ex('P in B'), ex('Q in B')]
+try_rules(premises, ex('P + Q in B'), forward_rules, backward_rules)
+
+# So now we have the distributed form:
+#
+# P * M + Q * M == M * P + M * Q
+#
+# And we want to turn it into:
+#
+# P * M == M * P and Q * M == M * Q
+#
+# When working forward, things we derive from premises can count as rules.  But
+# not when working backwards.
+#
+# We could work backwards to P * M == M * P, by noticing that the above
+# distributed form could have come from P*M + Q*M == x + M*Q and applying x ==
+# M*P, for any x, then guessing x == P*M.  But that's really arbitrary, and in
+# general gets to a very high fan out if we can replace any subexpression with
+# any other random expression.  So I guess we need to work both forward and
+# backward!
+
+# I guess our "moves" also count as
+# "rules"?  We start with P in B, and derive (from a rule) M * P == P * M.  We
+# then want to use the latter as a rule.  So do I need to remember not just
+# which expressions I've seen, but which rules I've applied them to?  Probably.
+# Could use a bitset for rules, or maintain an interned set of
 
 
 # Random Design Notes

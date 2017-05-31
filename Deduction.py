@@ -43,16 +43,15 @@ from Expression import *
 # locations.
 
 def match(dummies, pattern, target):
-    """Matches "pattern" against "target"s root, i.e. not recursively.  "dummies" is
-    the set of Nodes in "pattern" that are allowed to match any sub
-    expression. (TODO: have types for dummies.)  Returns the substitution, as
-    dict, that makes them match, or None if there's no match.  Be careful: both
-    the empty dict (meaning there's a match that works with any substitution)
-    and None (they don't match no matter what you substitute) evaluate as false
-    in Python.
+    """Matches "pattern" against "target"s root, i.e. not recursively.
 
-    dummies: the set of variables in "pattern" that can match any sub expression.
+    "dummies" is the set of Nodes in "pattern" that can match any sub
+    expression. (TODO: have types for dummies.)
 
+    Returns the substitution, as dict, that makes them match, or None if there's
+    no match.  Be careful: both the empty dict (meaning there's a match that
+    works with any substitution) and None (they don't match no matter what you
+    substitute) evaluate as false in Python.
     """
 
     assert isinstance(dummies, set)
@@ -86,8 +85,21 @@ def match(dummies, pattern, target):
         ret.update(m)
     return ret
 
+# def is_rule(expr):
+#     """Predicate: returns True iff try_rule(expr, target, backwards) could
+#     return a non-empty set for some target, backwards.
+#     """
+#     if has_head(expr, ForAll):
+#         return is_rule(rule[2])
+#
+#     if has_head(expr, Implies):
+#         # TODO: could take 'backwards' argument and use to only do one call on
+#         # the next line if non-None.
+#         return is_rule(rule[1]) or is_rule(rule[2])
 
 # Main entry point into deduction (for now).
+
+
 def try_rule(rule, target, backwards):
     return try_rule_recursive(set(), rule, target, backwards)
 
@@ -282,3 +294,59 @@ def path_length_helper(
                 subtree,
                 path_to_root,
                 paths_from_targets_to_root)
+
+
+def try_rules(premises, target, forward_rules, backward_rules):
+    """This is where the heuristics come in.  We're trying to find a path from
+    "rules" + "premises" to "target".
+    """
+    # For now, we don't use any heuristics, just a search forward from premises
+    # and backwards from target.  When this proves too slow, we can switch to
+    # something smarter.
+
+    # There's a deduction rule (==> introduction) where we add an arbitrary
+    # expression to the premises, derive some conclusion, then we can add
+    # 'new_premise ==> conclusion' to the original set of premises.  But for
+    # now, we'll skip that rule.
+
+    premises_list = list(premises)
+    premises_set = set(premises_list)
+
+    targets_list = [target]
+    targets_set = set(target_list)
+
+    rules = [(0, rule) for rule in rules]
+
+    # We want to keep the expressions in a list, and for each rule, apply it in
+    # order from index 0 on up.  Then for each rule, we simply need to keep the
+    # highest index that we've applied the rule to.  We still need a hash set to
+    # unique the move.
+
+    for iter in range(1000):
+        made_new_expr = False
+        for i, rule in enumerate(rules):
+            assert i <= len(moves_list)
+            if i >= len(moves_list):
+                continue
+
+            exprs = try_rule(rule, moves_list[i], True)
+            print(str(moves_list[i]) + ' -> ' + repr(exprs))
+
+            for move in exprs:
+                # Are we there yet?
+                #
+                # We also need premises like "ForAll x, x == x," which is
+                # actually a pattern to match.
+                if move in premises:
+                    print(move)
+                    print("DONE!!")
+                    return True
+                if move not in seen_moves:
+                    next_moves.append(this_moves)
+                    seen_moves.add(move)
+                    # What's the definition of a rule?
+
+        if not made_new_expr:
+            return False
+
+    return False

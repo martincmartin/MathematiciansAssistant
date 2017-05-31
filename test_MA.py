@@ -140,6 +140,11 @@ class TestRepr(unittest.TestCase):
             exists(A, ex('A + A == A'))),
             '\\exists(A, A + A == A)')
 
+    def test_in(self):
+        self.assertEqual(repr(
+            in_(P, B)),
+            'P \\in B')
+
 
 class TestMatch(unittest.TestCase):
     def test_node(self):

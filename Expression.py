@@ -100,6 +100,11 @@ class Node(Expression):
         rep, child_prec = child_repr_and_precedence
         return rep if child_prec > self.precedence else '(' + rep + ')'
 
+    def __repr__(self):
+        # If we really are an atom, our derived class needs to implement this.
+        # If we're an operator, this shouldn't be called.
+        raise NotImplementedError  # pragma: no cover
+
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
 # least for this sort of mathematical pattern matching code.
