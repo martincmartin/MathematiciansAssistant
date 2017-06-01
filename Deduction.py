@@ -105,8 +105,9 @@ def try_rule(rule, target, backwards):
 
 
 def try_rule_recursive(dummies, rule, target, backwards):
-    """Try to apply "rule" to all subexpressions of "target", and return a set of
-    the transformed expressions, one for each subtree where it applies.
+    """Try to apply "rule" to "target".  If rule is Implies, only applies it to
+    "target"'s root.  If rule is Equivalent or Equal, applies it recursively.
+    Returns a possibly empty set() of transformed expressions.
     """
     assert isinstance(dummies, set)
     assert isinstance(backwards, bool)
@@ -132,18 +133,35 @@ def try_rule_recursive(dummies, rule, target, backwards):
         # substitutions and free variables.  If we're working forwards, we match
         # the LHS and substitue on the RHS.
         if backwards:
-            return recursive_substitute(dummies, rule[2], rule[1], target)
+            return match_and_substitute(dummies, rule[2], rule[1], target)
         else:
-            return recursive_substitute(dummies, rule[1], rule[2], target)
+            return match_and_substitute(dummies, rule[1], rule[2], target)
 
     if has_head(rule, Equivalent) or has_head(rule, Equal):
-        return recursive_substitute(dummies, rule[2], rule[1], target).union(
-            recursive_substitute(dummies, rule[1], rule[2], target))
+        return recursive_match_and_substitute(
+            dummies, rule[2], rule[1], target).union(
+            recursive_match_and_substitute(
+                dummies, rule[1], rule[2], target))
 
     return set()
 
 
-def recursive_substitute(dummies, to_match, replacement, target):
+def match_and_substitute(dummies, to_match, replacement, target):
+    """Tries to match the rule "to_match" to the root of "target".
+
+    Returns a (possibly empty) set().
+
+    dummies: the set of variables in replacement that will be set to things in
+    to_match."""
+    assert isinstance(dummies, set)
+
+    subs = match(dummies, to_match, target)
+    if subs is not None:
+        return set([substitute(subs, replacement)])
+    return set()
+
+
+def recursive_match_and_substitute(dummies, to_match, replacement, target):
     """Tries to match the rule "to_match" to all subexpressions of "target".
 
     Returns a (possibly empty) set().
@@ -162,7 +180,7 @@ def recursive_substitute(dummies, to_match, replacement, target):
         return result
 
     for index, expr in enumerate(target):
-        all_changed = recursive_substitute(
+        all_changed = recursive_match_and_substitute(
             dummies, to_match, replacement, expr)
         for changed in all_changed:
             # new_target = target[:index] + (changed,) + target[index+1:]

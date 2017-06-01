@@ -77,6 +77,9 @@ class CompositeExpression(Expression, tuple):
 
     # Call pprint.pprint() on result.
     def declass(self):
+        """Intended for debugging, shows the structure of the tree, even for
+        invalid trees.
+        """
         return [e.declass() for e in self]
 
 
