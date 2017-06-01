@@ -1,4 +1,5 @@
 from Expression import *
+from pprint import pprint
 
 
 # Next steps: See "Meta thoughts on the first Dummit problem" in the google doc.
@@ -90,19 +91,20 @@ def match(dummies, pattern, target):
         ret.update(m)
     return ret
 
-# def is_rule(expr):
-#     """Predicate: returns True iff try_rule(expr, target, backwards) could
-#     return a non-empty set for some target, backwards.
-#     """
-#     if has_head(expr, ForAll):
-#         return is_rule(rule[2])
-#
-#     if has_head(expr, Implies):
-#         # TODO: could take 'backwards' argument and use to only do one call on
-#         # the next line if non-None.
-#         return is_rule(rule[1]) or is_rule(rule[2])
 
-# Main entry point into deduction (for now).
+def is_rule(expr):
+    """Predicate: returns True iff try_rule(expr, target, backwards) could
+    return a non-empty set for some target, either forwards or backwards.
+    """
+    if has_head(expr, ForAll):
+        return is_rule(expr[2])
+
+    if has_head(expr, Implies) or \
+       has_head(expr, Equivalent) or \
+       has_head(expr, Equal):
+        # TODO: could take 'backwards' argument and use to only do one call on
+        # the next line if non-None.
+        return is_rule(expr[1]) or is_rule(expr[2])
 
 
 def try_rule(rule, target, backwards):
@@ -321,7 +323,14 @@ def path_length_helper(
                 paths_from_targets_to_root)
 
 
-def try_rules(premises, target, forward_rules, backward_rules):
+class RulePosition:
+    def __init__(self, rule):
+        self.premise = 0
+        self.target = 0
+        self.rule = rule
+
+
+def try_rules(premises, target, rules):
     """This is where the heuristics come in.  We're trying to find a path from
     "rules" + "premises" to "target".
     """
@@ -335,41 +344,93 @@ def try_rules(premises, target, forward_rules, backward_rules):
     # now, we'll skip that rule.
 
     premises_list = list(premises)
-    premises_set = set(premises_list)
+    premises_and_rules_set = set(premises_list + rules)
 
     targets_list = [target]
-    targets_set = set(target_list)
+    targets_set = set(targets_list)
 
-    rules = [(0, rule) for rule in rules]
+    # The rules are really premises, or at least, ones with a root connective
+    # ==>, <==> or ==, possibly under any number of ForAlls.  And we'll want to
+    # add any such derived premises to the 'rules' list.  Hmm.
+
+    rules = [RulePosition(rule) for rule in rules]
 
     # We want to keep the expressions in a list, and for each rule, apply it in
     # order from index 0 on up.  Then for each rule, we simply need to keep the
     # highest index that we've applied the rule to.  We still need a hash set to
-    # unique the move.
+    # unique them.
+
+    # For now, we don't try to apply rules to other rules, just to premises and
+    # targets.  Although it would be easy...
 
     for iter in range(1000):
         made_new_expr = False
-        for i, rule in enumerate(rules):
-            assert i <= len(moves_list)
-            if i >= len(moves_list):
-                continue
+        rule_index = 0
+        print('+++++++++++++++  Pass ' + str(iter))
+        while rule_index < len(rules):
+            rule_pos = rules[rule_index]
+            assert rule_pos.premise <= len(premises_list)
+            assert rule_pos.target <= len(targets_list)
 
-            exprs = try_rule(rule, moves_list[i], True)
-            print(str(moves_list[i]) + ' -> ' + repr(exprs))
+            print('********** Rule: ' + str(rule_pos.rule))
 
-            for move in exprs:
-                # Are we there yet?
-                #
-                # We also need premises like "ForAll x, x == x," which is
-                # actually a pattern to match.
-                if move in premises:
-                    print(move)
-                    print("DONE!!")
-                    return True
-                if move not in seen_moves:
-                    next_moves.append(this_moves)
-                    seen_moves.add(move)
-                    # What's the definition of a rule?
+            if rule_pos.premise < len(premises_list):
+                exprs = try_rule(
+                    rule_pos.rule, premises_list[rule_pos.premise], True)
+
+                print(
+                    str(premises_list[rule_pos.premise]) + ' -> ' + repr(exprs))
+
+                for move in exprs:
+                    if move not in premises_and_rules_set:
+                        # Are we there yet?
+                        #
+                        # We also need premises like "ForAll x, x == x," which is
+                        # actually a pattern to match.
+                        if move in targets_set:
+                            print(move)
+                            print("DONE!!")
+                            return True
+
+                        made_new_expr = True
+
+                        if is_rule(move):
+                            # Could this end up beina depth first search, if
+                            # each rule creates a new rule?  Hmm.  If so, could
+                            # replace the 'while' above with only looping up to
+                            # the size of rules at the start.
+                            rules.append(RulePosition(move))
+                            print('rules:  ' + str(move))
+                        else:
+                            premises_list.append(move)
+                            print('premises:  ' + str(move))
+
+                        premises_and_rules_set.add(move)
+
+                rule_pos.premise += 1
+
+            if rule_pos.target < len(targets_list):
+                exprs = try_rule(
+                    rule_pos.rule, targets_list[rule_pos.target], False)
+
+                print(
+                    str(targets_list[rule_pos.target]) + ' -> ' + repr(exprs))
+
+                for move in exprs:
+                    if move not in targets_set:
+                        if move in premises_and_rules_set:
+                            print(move)
+                            print("DONE!!")
+                            return True
+
+                        made_new_expr = True
+                        targets_list.append(move)
+                        targets_set.add(move)
+                        print('targets:  ' + str(move))
+
+                rule_pos.target += 1
+
+            rule_index += 1
 
         if not made_new_expr:
             return False

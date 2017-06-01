@@ -23,14 +23,14 @@ R = var('R')
 
 
 # Multiplication is distributive
-left_dist = forall([P, Q, R], ex('R * (P + Q) == R * P + R * Q'))
-right_dist = forall([P, Q, R], ex('(P + Q) * R == P * R + Q * R'))
+left_dist = forall((P, Q, R), ex('R * (P + Q) == R * P + R * Q'))
+right_dist = forall((P, Q, R), ex('(P + Q) * R == P * R + Q * R'))
 
 # This is the definition of B:
 defB = forall(P, ex('P in B <==> P * M == M * P'))
 
 # This is what we have to prove:
-to_prove = forall([P, Q], ex('P in B and Q in B ==> P + Q in B'))
+to_prove = forall((P, Q), ex('P in B and Q in B ==> P + Q in B'))
 
 
 # So the idea is that we have a search problem, like GOFAI.  For
@@ -68,11 +68,10 @@ print("** Substitution from rule: " + str(s))
 # i.e. within the context of this problem, they're like premeses.  The only
 # actual rules we have at the moment are modus ponens and 'equal substitution.'
 
-backward_rules = [defB, left_dist, right_dist]
-forward_rules = [defB, left_dist, right_dist]
+rules = [defB, left_dist, right_dist]
 
 premises = [ex('P in B'), ex('Q in B')]
-try_rules(premises, ex('P + Q in B'), forward_rules, backward_rules)
+try_rules(premises, ex('P + Q in B'), rules)
 
 # So now we have the distributed form:
 #
@@ -181,7 +180,8 @@ try_rules(premises, ex('P + Q in B'), forward_rules, backward_rules)
 #############
 # Types
 #
-# Even in my first example, I have two types: boolean and matrix.
+# Even in my first example, I have three types: boolean, matrix and logical
+# connective, i.e. function from bool x bool -> bool.
 # They have different operators, so you can tell their type from
 # context, i.e. <==> is only for booleans, == is only for matricies.
 # So I haven't taught my system about types yet, but its a bit of a
