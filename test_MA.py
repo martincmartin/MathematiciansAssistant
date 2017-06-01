@@ -207,9 +207,9 @@ class TestTryRule(unittest.TestCase):
     def test_modus_ponens(self):
         self.assertEqual(
             try_rule(forall([P, Q], ex('((P ==> Q) and P) ==> Q')),
-                     ex('(P ==> Q) and P'),
+                     ex('(A ==> B) and A'),
                      False),  # not backwards, i.e. forwards
-            {ex('Q')})
+            {ex('B')})
 
     def test_definition_of_set(self):
         self.assertEqual(
@@ -220,14 +220,14 @@ class TestTryRule(unittest.TestCase):
 
     def test_distribute_right(self):
         self.assertEqual(
-            try_rule(forall([P, Q, R], ex('(P + Q) * R == P * R + Q * R')),
+            try_rule(forall([A, B, R], ex('(A + B) * R == A * R + B * R')),
                      ex('(P + Q) * M == M * (P + Q)'),
                      True),  # backwards
             {ex('P * M + Q * M == M * (P + Q)')})
 
     def test_distribute_left(self):
         self.assertEqual(
-            try_rule(forall([P, Q, R], ex('R * (P + Q) == R * P + R * Q')),
+            try_rule(forall([A, B, R], ex('R * (A + B) == R * A + R * B')),
                      ex('P * M + Q * M == M * (P + Q)'),
                      True),  # backwards
             {ex('P * M + Q * M == M * P + M * Q')})
@@ -272,10 +272,19 @@ class TestTryRule(unittest.TestCase):
 
     def test_not_recursive(self):
         self.assertEqual(
-            try_rule(forall([P, Q, R], ex('P and Q ==> P')),
+            try_rule(forall([P, Q], ex('P and Q ==> P')),
                      ex('not ( P and Q)'),
                      False),  # backwards
             set())
+
+    def test_only_match_boolean(self):
+        self.assertEqual(
+            try_rule(forall([P], ex('P and P <==> P')),
+                     ex('A and B'),
+                     True),  # backwards
+            {ex('(A and A) and B'),
+             ex('(A and B) and (A and B)'),
+             ex('A and (B and B)')})
 
 # TODO: Also need to test that we can't match a dummy against a
 # non-Variable Node?

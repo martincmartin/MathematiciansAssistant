@@ -76,11 +76,18 @@ class CompositeExpression(Expression, tuple):
         return self[0].repr_tree(self[1:])
 
     # Call pprint.pprint() on result.
-    def declass(self):
+    def declass(self):  # pragma: no cover
         """Intended for debugging, shows the structure of the tree, even for
         invalid trees.
         """
         return [e.declass() for e in self]
+
+    # Returns a set().
+    def free_variables(self, exclude):
+        result = set()
+        for x in self:
+            result = result.union(x.free_variables(exclude))
+        return result
 
 
 class Node(Expression):
@@ -113,8 +120,12 @@ class Node(Expression):
         # If we're an operator, this shouldn't be called.
         raise NotImplementedError  # pragma: no cover
 
-    def declass(self):
+    def declass(self):  # pragma: no cover
         return type(self).__name__
+
+    # Returns a set().
+    def free_variables(self, exclude):
+        return set()
 
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
@@ -233,8 +244,15 @@ class Variable(Node):
     def __hash__(self):
         return hash(self.name)
 
-    def declass(self):
+    def declass(self):  # pragma: no cover
         return self.name
+
+    # Returns a set().
+    def free_variables(self, exclude):
+        if self in exclude:
+            return set()
+        else:
+            return {self}
 
 
 def makefn(clz, name=''):

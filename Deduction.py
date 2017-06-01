@@ -58,6 +58,11 @@ def match(dummies, pattern, target):
 
     if isinstance(pattern, Node):
         if pattern in dummies:
+            assert pattern not in target.free_variables(dummies)
+            # This is a hack until we have types: assume any composite
+            # expression is boolean valued.
+            if isinstance(target, Node) and not target.free_variables(set()):
+                return None
             return {pattern: target}
         if pattern == target:
             return {}
@@ -114,6 +119,8 @@ def try_rule_recursive(dummies, rule, target, backwards):
 
     if has_head(rule, ForAll):
         # For "forall" we add the variables to dummies and recurse.
+        # TODO: rename dummy if its in target.free_variables(dummies) or
+        # dummies.
         if isinstance(rule[1], Node):
             assert rule[1] not in dummies
             new_dummies = [rule[1]]
@@ -157,7 +164,7 @@ def match_and_substitute(dummies, to_match, replacement, target):
 
     subs = match(dummies, to_match, target)
     if subs is not None:
-        return set([substitute(subs, replacement)])
+        return {substitute(subs, replacement)}
     return set()
 
 
