@@ -189,6 +189,21 @@ class TestMatch(unittest.TestCase):
             {P: A, Q: B})
 
 
+class TestIsInstance(unittest.TestCase):
+    def test_reflexivity_of_equals(self):
+        self.assertEqual(
+            is_instance(forall(A, ex('A == A')),
+                        ex('M * P + M * Q == M * P + M * Q'),
+                        set()),
+            {A: ex('M * P + M * Q')})
+
+    def test_distributed_law(self):
+        self.assertEqual(
+            is_instance(forall((A, B, M), ex('(A + B) * M == A * M + B * M')),
+                        ex('(P + Q) * M == P * M + Q * M')),
+            {A: P, B: Q, M: M})
+
+
 class TestTryRule(unittest.TestCase):
     def test_doesnt_match(self):
         self.assertEqual(

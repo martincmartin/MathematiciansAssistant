@@ -21,6 +21,8 @@ P = var('P')
 Q = var('Q')
 R = var('R')
 
+# Rules for equals
+equals_reflexive = forall(x, ex('x == x'))
 
 # Multiplication is distributive
 left_dist = forall((P, Q, R), ex('R * (P + Q) == R * P + R * Q'))
@@ -68,7 +70,14 @@ print("** Substitution from rule: " + str(s))
 # i.e. within the context of this problem, they're like premeses.  The only
 # actual rules we have at the moment are modus ponens and 'equal substitution.'
 
-rules = [defB, left_dist, right_dist]
+# So now we have everything except recognizing the reflexivity of equals.  We
+# could add that as a 'rule' (axiom), and note that one of the strings we've
+# generated, M * P + M * Q == M * P + M * Q, is an instance of it.  It
+# essentially corresponds to instantiating a 'forall.'
+#
+# forall(x, x == x)
+
+rules = [defB, left_dist, right_dist]  # , equals_reflexive]
 
 premises = [ex('P in B'), ex('Q in B')]
 try_rules(premises, ex('P + Q in B'), rules)

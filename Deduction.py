@@ -99,12 +99,9 @@ def is_rule(expr):
     if has_head(expr, ForAll):
         return is_rule(expr[2])
 
-    if has_head(expr, Implies) or \
-       has_head(expr, Equivalent) or \
-       has_head(expr, Equal):
-        # TODO: could take 'backwards' argument and use to only do one call on
-        # the next line if non-None.
-        return is_rule(expr[1]) or is_rule(expr[2])
+    return has_head(expr, Implies) or \
+        has_head(expr, Equivalent) or \
+        has_head(expr, Equal)
 
 
 def try_rule(rule, target, backwards):
@@ -123,15 +120,8 @@ def try_rule_recursive(dummies, rule, target, backwards):
         # For "forall" we add the variables to dummies and recurse.
         # TODO: rename dummy if its in target.free_variables(dummies) or
         # dummies.
-        if isinstance(rule[1], Node):
-            assert rule[1] not in dummies
-            new_dummies = [rule[1]]
-        else:
-            assert dummies.isdisjoint(rule[1])
-            new_dummies = rule[1]
-
         return try_rule_recursive(
-            dummies.union(new_dummies),
+            dummies.union(rule.get_variables(dummies)),
             rule[2],
             target,
             backwards)
@@ -197,6 +187,22 @@ def recursive_match_and_substitute(dummies, to_match, replacement, target):
             new_target[index] = changed
             result.add(CompositeExpression(new_target))
     return result
+
+
+def is_instance(rule, target, dummies=set()):
+    """Determines whether 'target' is an instance of 'rule.'
+
+    returns the substitution that makes them match, or None if there's no match.
+
+    NOTE: Doesn't handle ForAll that's under anything other than more ForAlls.
+    """
+
+    if has_head(rule, ForAll):
+        return is_instance(
+            rule[2], target, dummies.union(
+                rule.get_variables(dummies)))
+    else:
+        return match(dummies, rule, target)
 
 
 def substitute(subs, expr):
@@ -384,13 +390,21 @@ def try_rules(premises, target, rules):
                 for move in exprs:
                     if move not in premises_and_rules_set:
                         # Are we there yet?
-                        #
-                        # We also need premises like "ForAll x, x == x," which is
-                        # actually a pattern to match.
                         if move in targets_set:
                             print(move)
                             print("DONE!!")
                             return True
+
+                        # We have a new premise / rule!
+                        for target in targets_list:
+                            subs = is_instance(move, target)
+                            if subs is not None:
+                                print(str(target) +
+                                      ' is an instance of ' +
+                                      str(move) + ' subs ' +
+                                      str(subs) + '  !!!!!!')
+
+                                return True
 
                         made_new_expr = True
 
@@ -422,6 +436,15 @@ def try_rules(premises, target, rules):
                             print(move)
                             print("DONE!!")
                             return True
+
+                        for rule_p in rules:
+                            subs = is_instance(rule_p.rule, move)
+                            if subs is not None:
+                                print(str(move) +
+                                      ' is an instance of ' +
+                                      str(rule_p.rule) + ' subs ' +
+                                      str(subs) + '  !!!!!!')
+                                return True
 
                         made_new_expr = True
                         targets_list.append(move)

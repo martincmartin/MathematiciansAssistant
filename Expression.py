@@ -63,6 +63,11 @@ class Expression:
     def __repr__(self):
         return self.repr_and_precedence()[0]
 
+    # TODO: Have all missing methods forward to their first argument, so we
+    # don't need the boilerplate here?
+    def get_variables(self, other_dummies):
+        return self[0].get_variables(self, other_dummies)
+
 
 class CompositeExpression(Expression, tuple):
     # We need a shorter name for this.  Just "Composite"?  That
@@ -221,12 +226,22 @@ class Equal(Infix):
         Infix.__init__(self, '==', Precedence.COMPARISON)
 
 
-class ForAll(Node):
+class Quantifier(Node):
+    def get_variables(self, expr, other_dummies):
+        if isinstance(expr[1], Node):
+            assert expr[1] not in other_dummies
+            return {expr[1]}
+        else:
+            assert other_dummies.isdisjoint(expr[1])
+            return expr[1]
+
+
+class ForAll(Quantifier):
     def __repr__(self):
         return r'\forall'
 
 
-class Exists(Node):
+class Exists(Quantifier):
     def __repr__(self):
         return r'\exists'
 
