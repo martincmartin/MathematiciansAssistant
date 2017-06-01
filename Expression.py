@@ -10,6 +10,7 @@
 
 from enum import Enum, unique
 from functools import total_ordering
+from pprint import pprint
 
 
 # This is only used for pretty-printing, not parsing, but needs to be kept in
@@ -74,6 +75,10 @@ class CompositeExpression(Expression, tuple):
         assert(len(self) > 0)
         return self[0].repr_tree(self[1:])
 
+    # Call pprint.pprint() on result.
+    def declass(self):
+        return [e.declass() for e in self]
+
 
 class Node(Expression):
     # Mathematica calls this an Atom.  In Mathematica, Head of a node is
@@ -104,6 +109,9 @@ class Node(Expression):
         # If we really are an atom, our derived class needs to implement this.
         # If we're an operator, this shouldn't be called.
         raise NotImplementedError  # pragma: no cover
+
+    def declass(self):
+        return type(self).__name__
 
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
@@ -221,6 +229,9 @@ class Variable(Node):
 
     def __hash__(self):
         return hash(self.name)
+
+    def declass(self):
+        return self.name
 
 
 def makefn(clz, name=''):

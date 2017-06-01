@@ -12,6 +12,7 @@ from Expression import *
 import Parser
 from Deduction import *
 import tokenize
+from pprint import pprint
 
 P = var('P')
 Q = var('Q')
@@ -125,6 +126,9 @@ class TestRepr(unittest.TestCase):
 
     def test_not(self):
         self.cannonical('not P')
+
+    def test_not2(self):
+        self.cannonical('not (P and Q)')
 
     def test_forall(self):
         self.assertEqual(repr(
@@ -265,6 +269,16 @@ class TestTryRule(unittest.TestCase):
                      ex('X + Y + Z'),
                      True),  # backwards
             {ex('Z + (X + Y)'), ex('Y + X + Z')})
+
+    def test_not_recursive(self):
+        self.assertEqual(
+            try_rule(forall([P, Q, R], ex('P and Q ==> P')),
+                     ex('not ( P and Q)'),
+                     False),  # backwards
+            set())
+
+# TODO: Also need to test that we can't match a dummy against a
+# non-Variable Node?
 
 
 class TestPathLength(unittest.TestCase):
