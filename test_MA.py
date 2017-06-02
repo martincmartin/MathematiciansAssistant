@@ -136,8 +136,8 @@ class TestRepr(unittest.TestCase):
             '\\forall(P, P ==> P)')
 
         self.assertEqual(repr(
-            forall([P, Q], ex('P + Q == Q + P'))),
-            '\\forall([P, Q], P + Q == Q + P)')
+            forall((P, Q), ex('P + Q == Q + P'))),
+            '\\forall((P, Q), P + Q == Q + P)')
 
     def test_exists(self):
         self.assertEqual(repr(
@@ -207,21 +207,21 @@ class TestIsInstance(unittest.TestCase):
 class TestTryRule(unittest.TestCase):
     def test_doesnt_match(self):
         self.assertEqual(
-            try_rule(forall([P, Q, R], ex('(P + Q) * R == P * R + Q * R')),
+            try_rule(forall((P, Q, R), ex('(P + Q) * R == P * R + Q * R')),
                      ex('P + Q in B'),
                      True),  # backwards
             set())
 
     def test_modus_tollens(self):
         self.assertEqual(
-            try_rule(forall([P, Q], ex('((P ==> Q) and not Q) ==> not P')),
+            try_rule(forall((P, Q), ex('((P ==> Q) and not Q) ==> not P')),
                      ex('not B'),
                      True),  # backwards
             {ex('(B ==> Q) and not Q')})
 
     def test_modus_ponens(self):
         self.assertEqual(
-            try_rule(forall([P, Q], ex('((P ==> Q) and P) ==> Q')),
+            try_rule(forall((P, Q), ex('((P ==> Q) and P) ==> Q')),
                      ex('(A ==> B) and A'),
                      False),  # not backwards, i.e. forwards
             {ex('B')})
@@ -235,14 +235,14 @@ class TestTryRule(unittest.TestCase):
 
     def test_distribute_right(self):
         self.assertEqual(
-            try_rule(forall([A, B, R], ex('(A + B) * R == A * R + B * R')),
+            try_rule(forall((A, B, R), ex('(A + B) * R == A * R + B * R')),
                      ex('(P + Q) * M == M * (P + Q)'),
                      True),  # backwards
             {ex('P * M + Q * M == M * (P + Q)')})
 
     def test_distribute_left(self):
         self.assertEqual(
-            try_rule(forall([A, B, R], ex('R * (A + B) == R * A + R * B')),
+            try_rule(forall((A, B, R), ex('R * (A + B) == R * A + R * B')),
                      ex('P * M + Q * M == M * (P + Q)'),
                      True),  # backwards
             {ex('P * M + Q * M == M * P + M * Q')})
@@ -265,7 +265,7 @@ class TestTryRule(unittest.TestCase):
 
     def test_cancel_both_sides(self):
         self.assertEqual(
-            try_rule(forall([P, Q, R], ex('P + Q == P + R <==> Q == R')),
+            try_rule(forall((P, Q, R), ex('P + Q == P + R <==> Q == R')),
                      ex('M * P + Q * M == M * P + M * Q'),
                      True),  # backwards
             {ex('Q * M == M * Q'),
@@ -280,21 +280,21 @@ class TestTryRule(unittest.TestCase):
 
     def test_match_under_match(self):
         self.assertEqual(
-            try_rule(forall([A, B], ex('A + B == B + A')),
+            try_rule(forall((A, B), ex('A + B == B + A')),
                      ex('X + Y + Z'),
                      True),  # backwards
             {ex('Z + (X + Y)'), ex('Y + X + Z')})
 
     def test_not_recursive(self):
         self.assertEqual(
-            try_rule(forall([P, Q], ex('P and Q ==> P')),
+            try_rule(forall((P, Q), ex('P and Q ==> P')),
                      ex('not ( P and Q)'),
                      False),  # backwards
             set())
 
     def test_only_match_boolean(self):
         self.assertEqual(
-            try_rule(forall([P], ex('P and P <==> P')),
+            try_rule(forall((P,), ex('P and P <==> P')),
                      ex('A and B'),
                      True),  # backwards
             {ex('(A and A) and B'),

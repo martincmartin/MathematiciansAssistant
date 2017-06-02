@@ -12,15 +12,17 @@ from enum import Enum, unique
 from functools import total_ordering
 from pprint import pprint
 
+from collections import Hashable
 
-# This is only used for pretty-printing, not parsing, but needs to be kept in
-# sync with parser in Parser.py.
-#
-# We should only use the ordering of these, not the actual value, because the
-# values will change as we add more operators.
+
 @total_ordering
 @unique
 class Precedence(Enum):
+    # This is only used for pretty-printing, not parsing, but needs to be kept in
+    # sync with parser in Parser.py.
+    #
+    # We should only use the ordering of these, not the actual value, because the
+    # values will change as we add more operators.
     FORALL_EXISTS = 1
     IMPLIES_EQUIV = 2
     AND_OR = 3
@@ -74,6 +76,12 @@ class CompositeExpression(Expression, tuple):
     # collides with the name for non-prime numbers.  "Internal"?
     # "Tree"?  "Cons"?  "Cells"?  "List"?  In Mathematica, a list is a
     # composite expression with head List.
+
+    def __init__(self, iter):
+        lst = [it for it in iter]
+        for it in lst:
+            assert isinstance(it, Hashable)
+        tuple.__init__(lst)
 
     # I'm using inheritence instead of composition.  Oh well.
     def repr_and_precedence(self):
