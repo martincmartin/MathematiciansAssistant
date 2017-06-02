@@ -24,15 +24,15 @@ R = var('R')
 # Rules for equals
 equals_reflexive = forall(x, ex('x == x'))
 
-# Multiplication is distributive
+# Multiplication is associative
+mult_associative = forall((P, Q, R), ex('(P * Q) * R == P * (Q * R)'))
+
+# Multiplication distributes over addition
 left_dist = forall((P, Q, R), ex('R * (P + Q) == R * P + R * Q'))
 right_dist = forall((P, Q, R), ex('(P + Q) * R == P * R + Q * R'))
 
 # This is the definition of B:
 defB = forall(P, ex('P in B <==> P * M == M * P'))
-
-# This is what we have to prove:
-to_prove = forall((P, Q), ex('P in B and Q in B ==> P + Q in B'))
 
 
 # So the idea is that we have a search problem, like GOFAI.  For
@@ -47,40 +47,23 @@ to_prove = forall((P, Q), ex('P in B and Q in B ==> P + Q in B'))
 # (plus other premises) to the end.  In fact, the start may be a red
 # herring, so for now we can focus on the end.
 
-# We need some pattern matching.
-#
-# We start with P + Q \in B, and want to find all rules which match it.
-#
-
-
-s = try_rule(defB, in_(P + Q, B), True)
-# (P + Q) * M == M * (P + Q)
-print("** Substitution from rule: " + str(s))
-
-# Next: apply the left & right distributitve laws.
-# P * M + Q * M == M * P + M * Q
-# Apply P \in B:
-# M * P + Q * M == M * P + M * Q
-
-# We could add some tautologies, like:
-# forall X: X = X
-# forall x, Y, Z: X + Y == X + Z <==> Y == Z
 
 # So, what we're calling 'rules' here aren't actually rules but axioms,
 # i.e. within the context of this problem, they're like premeses.  The only
 # actual rules we have at the moment are modus ponens and 'equal substitution.'
 
-# So now we have everything except recognizing the reflexivity of equals.  We
-# could add that as a 'rule' (axiom), and note that one of the strings we've
-# generated, M * P + M * Q == M * P + M * Q, is an instance of it.  It
-# essentially corresponds to instantiating a 'forall.'
-#
-# forall(x, x == x)
+rules = [defB, left_dist, right_dist, mult_associative]  # , equals_reflexive]
 
-rules = [defB, left_dist, right_dist]  # , equals_reflexive]
+# Dummit and Foote, problem 0.1.2
+proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'), rules)
+print('**********  Problem 0.1.2')
+print('\n'.join([str(p) for p in proof]))
 
-premises = [ex('P in B'), ex('Q in B')]
-try_rules(premises, ex('P + Q in B'), rules)
+# Dummit and Foote, problem 0.1.3
+print('**********  Problem 0.1.3')
+proof = try_rules([ex('P in B'), ex('Q in B')], ex('P * Q in B'), rules, False)
+for p in proof:
+    print(p)
 
 # So now we have the distributed form:
 #
