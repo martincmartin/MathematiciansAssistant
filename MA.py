@@ -35,19 +35,6 @@ right_dist = forall((P, Q, R), ex('(P + Q) * R == P * R + Q * R'))
 defB = forall(P, ex('P in B <==> P * M == M * P'))
 
 
-# So the idea is that we have a search problem, like GOFAI.  For
-# example, at this point, all we know about the set B is its
-# definition, so the only thing we can do to either the premise or
-# conclusion of our (in-progress) proof is to expand them based on the
-# definition.
-#
-# Later, we can worry about what happens when we have lots of options.
-#
-# So, to prove an "implies", you search for a path from the start
-# (plus other premises) to the end.  In fact, the start may be a red
-# herring, so for now we can focus on the end.
-
-
 # So, what we're calling 'rules' here aren't actually rules but axioms,
 # i.e. within the context of this problem, they're like premeses.  The only
 # actual rules we have at the moment are modus ponens and 'equal substitution.'
@@ -64,30 +51,6 @@ print('**********  Problem 0.1.3')
 proof = try_rules([ex('P in B'), ex('Q in B')], ex('P * Q in B'), rules, False)
 for p in proof:
     print(p)
-
-# So now we have the distributed form:
-#
-# P * M + Q * M == M * P + M * Q
-#
-# And we want to turn it into:
-#
-# P * M == M * P and Q * M == M * Q
-#
-# When working forward, things we derive from premises can count as rules.  But
-# not when working backwards.
-#
-# We could work backwards to P * M == M * P, by noticing that the above
-# distributed form could have come from P*M + Q*M == x + M*Q and applying x ==
-# M*P, for any x, then guessing x == P*M.  But that's really arbitrary, and in
-# general gets to a very high fan out if we can replace any subexpression with
-# any other random expression.  So I guess we need to work both forward and
-# backward!
-
-# I guess our "moves" also count as
-# "rules"?  We start with P in B, and derive (from a rule) M * P == P * M.  We
-# then want to use the latter as a rule.  So do I need to remember not just
-# which expressions I've seen, but which rules I've applied them to?  Probably.
-# Could use a bitset for rules, or maintain an interned set of
 
 
 # Random Design Notes
