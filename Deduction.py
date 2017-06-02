@@ -43,6 +43,21 @@ from pprint import pprint
 # general information."  Then that one could reasonably be tried at all
 # locations.
 
+##########################
+#
+# Limitations of the current theorem prover:
+#
+# - Only checks rules against premises and targets, not other rules.
+#
+# - Only true inference rules are modus ponens and substitution, although many
+#   others could be coded as axioms.  But not ==> introduction and maybe a few
+#   others.
+#
+# - is_instance (used to tell if a proof is complete) only handles ForAll at the
+#   root or under other ForAlls at the root, but not under any other operator.
+#
+# - Breadth first search quickly gets into combinatorial explosion.
+
 def match(dummies, pattern, target):
     """Matches "pattern" against "target"s root, i.e. not recursively.
 

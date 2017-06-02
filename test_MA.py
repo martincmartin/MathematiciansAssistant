@@ -204,6 +204,20 @@ class TestIsInstance(unittest.TestCase):
             {A: P, B: Q, M: M})
 
 
+class TestIsRule(unittest.TestCase):
+    def test_equals(self):
+        self.assertTrue(is_rule(ex('P * M == M * P')))
+
+    def test_equivalent(self):
+        self.assertTrue(is_rule(ex('A and B <==> B and A')))
+
+    def test_implies(self):
+        self.assertTrue(is_rule(ex('(P and P ==> Q) ==> Q')))
+
+    def test_forall_equals(self):
+        self.assertTrue(is_rule(forall((P, M), ex('P * M == M * P'))))
+
+
 class TestTryRule(unittest.TestCase):
     def test_doesnt_match(self):
         self.assertEqual(
@@ -300,9 +314,6 @@ class TestTryRule(unittest.TestCase):
             {ex('(A and A) and B'),
              ex('(A and B) and (A and B)'),
              ex('A and (B and B)')})
-
-# TODO: Also need to test that we can't match a dummy against a
-# non-Variable Node?
 
 
 class TestPathLength(unittest.TestCase):
