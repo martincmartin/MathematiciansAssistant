@@ -5,12 +5,9 @@ from pprint import pprint
 # Next steps: See "Meta thoughts on the first Dummit problem" in the google doc.
 #
 # Starting with "P + Q in B," the only rule we can apply is the definition of B,
-# so that's easy.  :)  That gives (P + Q) * M == M * (P + Q).
-#
-# At this point, we can't just use a blind search, since we can always apply
-# x == y <==> x + z == y + z for any z, so we have an infinite search space.  We
-# can also apply the left and right distributed rules.  And the definition of B,
-# the inverse of what we just did, which is pointless.
+# so that's easy.  :) That gives (P + Q) * M == M * (P + Q).  [That's not
+# technically true, you can also apply rules that add random crap.  But it's the
+# only rule that 'makes sense.']
 #
 # We have the path_length, which we can use for the distributed rule.
 #
@@ -30,14 +27,7 @@ from pprint import pprint
 #
 # 2. I'm happy to have a simple rule that says "always try the premesis first."
 # It could even be manual, i.e. I just hard code trying the premises.
-#
-# 3. We want to be able to work both forward and backward, i.e. from premises to
-# conclusions, as well as from conclusions to premesis.
 
-# try_rule() tries to apply the rule at all possible spots and, for == and <==>,
-# both the LHS and RHS.  That's not what we want.  Don't want
-# recursive_substitute() either.  match() and substitute() can help though.
-#
 # As for trying the definition of B: maybe that one should always be first?
 # Something like "try the information that comes in the problem before more
 # general information."  Then that one could reasonably be tried at all
@@ -365,6 +355,18 @@ def collect_path(start):
         start = start[1]
     return ret
 
+
+# Instead of just blindly trying everything, we should have a strategy, a goal
+# to solve, and try whatever would help the goal.  What does that look like?
+#
+# So in the first problem, the goal is to prove P + Q in B.  And the only thing
+# we know is the definition of B.
+#
+# From a purity point of view, I feel like the system should try all the rules
+# and figure out for itself when they're useful and when they're not.  I guess
+# we could start with some basic features, like what nodes are in it, even sub
+# trees to pattern match against, and of course path length and other structural
+# things.
 
 def try_rules(premises, target, rules, verbose=False):
     """This is where the heuristics come in.  We're trying to find a path from
