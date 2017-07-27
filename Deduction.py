@@ -1,5 +1,36 @@
 from Expression import *
 from pprint import pprint
+from collections import namedtuple
+
+
+# So we proved the first two problems, but using brute force.  Would like to
+# capture a more human method instead.  For example, we would like to work
+# primarily forward, from the start to the goal, rather than backward from the
+# goal.
+#
+# We want to prove "P in B and Q in B -> P + Q in B."
+#
+# Some tactics to start:
+#
+# 1. We can apply any "obvious" techniques to the context, independent of the
+#    goal, such as simplification (e.g. collapsing constants) or, in our case,
+#    applying the definition.
+#
+# 2. We can work backwards from the goal, without thinking explicitly about the
+#    premises / context, in the same way as 1., i.e. apply simplifications and
+#    definitions.
+#
+# 3. Note similarities & differences between the context and the goal, and see
+#    what might transform the start into the goal.
+#
+# Ideally, we would learn how much of the goal, context, etc. to look at for
+# each tactic.  But we can add that later.
+
+# So what do we need?
+#
+# - Explicit context.
+# - Explicit goal(s).
+#
 
 
 # Next steps: See "Meta thoughts on the first Dummit problem" in the google doc.
@@ -50,6 +81,109 @@ from pprint import pprint
 #
 # - Assumes rules only apply to single expression, so can't do "and
 #   introduction" for example.
+
+# TODO: Maybe separate out the "general_rules", since we'll need the concept of
+# sub-goals and provisional context for proving implications anyway?
+class Exprs:
+    def __init__(self, exprs, general_rules):
+        self.exprs_list = [ExprAndParent(e, None)
+                           for e in exprs if not is_rule(e)]
+        self.exprs_rules = [ExprAndParent(e, None)
+                            for e in exprs if is_rule(e)]
+
+        assert all(is_rule(r) for r in general_rules)
+        self.general_rules = [ExprAndParent(r, None) for r in general_rules]
+
+        self.exprs_map = {expr.expr: expr for expr in
+                          self.exprs_list + self.exprs_rules +
+                          self.general_rules}
+
+    def add(self, expr_and_parent):
+        if is_rule(expr_and_parent.expr):
+            self.exprs_rules.append(expr_and_parent)
+        else:
+            self.exprs_list.append(expr_and_parent)
+        self.exprs_map[expr_and_parent.expr] = expr_and_parent
+
+    def __contains__(self, expr):
+        return expr in self.exprs_map
+
+    def __getitem__(self, key):
+        return self.exprs_map[key]
+
+    def __iter__(self):
+        # Could also return an iter over the concatenation of the 3 lists.
+        return self.exprs_map.values().__iter__()
+
+    def non_rules(self):
+        return self.exprs_list
+
+    def relevant_rules(self):
+        return self.exprs_rules
+
+
+class ProofState:
+    def __init__(
+            self,
+            context,
+            goal,
+            general_rules,
+            ExprsClass,
+            verbose=False):
+        self.verbose = verbose
+
+        self.context = ExprsClass(context, general_rules)
+
+        self.goals = ExprsClass([goal], [])
+
+    def is_instance(self, rule, expr):
+        subs = is_instance(rule, expr)
+        if self.verbose and subs is not None:
+            print(str(expr) + ' is an instance of ' +
+                  str(rule) + ' subs ' + str(subs) + '  !!!!!!')
+        return subs
+
+    def try_rule(self, rule, expr_in, already_seen, targets, backwards):
+        """TODO: allow backwards."""
+        exprs = try_rule(rule, expr_in, backwards)
+
+        if self.verbose:
+            print(str(expr_in) + ' -> ' + repr(exprs))
+
+        for move in exprs:
+            if move in already_seen:
+                continue
+
+            move_and_parent = ExprAndParent(move, expr_in)
+
+            # Ideally, in the case of P in B -> P * M == M * P, we'd
+            # recognize that the latter is equivalent to the former, and is
+            # strictly more useful so we can get rid of the former.  But I
+            # think that takes some global knowledge of the proof, e.g. that
+            # "P in B" doesn't appear in the goal in any form, or in any
+            # other premises, etc.  So we'll skip that for now.
+
+            found = self.match_against_exprs(move_and_parent, targets)
+            if found:
+                return (move_and_parent, found)
+            already_seen.add(move_and_parent)
+
+        return []
+
+    def match_against_exprs(self, move_and_parent, targets):
+        """Determines whether move_and_parent.expr equals or is_instance any
+        element of targets.
+
+        If so, returns the element.  If not, returns None.
+        """
+        move = move_and_parent.expr
+        if move in targets:
+            return targets[move]
+
+        return next((expr_and_parent for expr_and_parent in targets if
+                     self.is_instance(move, expr_and_parent.expr) is not None),
+                    None)
+
 
 def match(dummies, pattern, target):
     """Matches "pattern" against "target"s root, i.e. not recursively.
@@ -368,6 +502,89 @@ def collect_path(start):
 # trees to pattern match against, and of course path length and other structural
 # things.
 
+ExprAndParent = namedtuple('ExprAndParent', 'expr,parent')
+
+
+def try_rules2(context, goal, context_rules, general_rules, verbose=False):
+    """context and context_rules are disjoint, all in context_rules satisfy
+    is_rule(), whereas none of those in context do."""
+
+    # We need to be able to recognize that the B in "P in B" is special, since
+    # it only has meaning given by the rule, in fact by a single rule.  Hmm.
+    # Should we think things like "+" and "in" are "general" and free variables
+    # are "specific"?
+    #
+    # Whenever I try to come up with a principle like that, I feel like I'm
+    # cheating.  In abstract algebra, "+" takes on a whole new meaning because
+    # it follows a subset of the rules we know from real numbers.  So we have to
+    # look at it with fresh eyes and it becomes "specific" again, until we get
+    # an intuition about what you can do with it and what you can't.  And coming
+    # up with that intuition is exactly what I want my system to do, some day.
+    # But that no doubt involves parameter twiddling, and I want to avoid
+    # parameter twiddling for now.  So that's the tension: I only want to
+    # introduce parameter twiddling when I need it, yet I'm reluctant to try to
+    # explicitly ossify my intution into a set of categories, for fear it will
+    # constrain my thinking to that ontology.
+    #
+    # I do need to work incrementally toward my full system though. So at this
+    # stage, I need my system to come up with adding the equations P * M == M *
+    # P and Q * M == M * Q.  It could do that by noting some missing elements,
+    # e.g. the goal has P, Q, M, * and +, and our context doesn't have a +.
+    # There's also the symmetry: both the premises and the goal are symmetric in
+    # P and Q, so we need to combine them in a symetric way.
+    #
+    # So we can start by simpling looking at the unqiue tokens we have,
+    # recognizing that we need to combine our two premises and introduce a +.
+    # So maybe I shouldn't fear that the simple ontology will become ossified.
+    #
+    # Working backwards from the goal, in the sense of applying the distributive
+    # rule to it, is not bad either.  Neither is taking the LHS of the goal and
+    # trying to transform it into the RHS.  In fact, I'd call that working
+    # forward, in the important sense: you're not matching against the RHS of an
+    # implies.
+
+    # So the strategy is something like:
+    #
+    # - Try modifying the context in ways independent from the goal,
+    #   e.g. simplifying, expanding definitions.
+    #
+    # - When that's done, try the same thing working backwards from the goal,
+    #   independent of the context.
+    #
+    # - If the goal is a universally quantified equality, pick one side (for
+    #   now, always the LHS) and try to transform it into the RHS by working
+    #   forward.
+
+    state = ProofState(
+        context + context_rules,
+        goal,
+        general_rules,
+        Exprs,
+        verbose)
+
+    # Step 1: apply context_rules to context_list.
+    for cont in state.context.non_rules():
+        print("***********  " + str(cont.expr))
+        for rule in state.context.relevant_rules():
+            print("Rule: " + str(rule.expr))
+            found = state.try_rule(
+                rule.expr,
+                cont.expr,
+                state.context,
+                state.goals,
+                False)
+            if found:
+                return list(reversed(collect_path(found))) + collect_path(cont)
+
+    # # Step 2: simplification / transformations from the goal.
+    # for goal in state.goals_list:
+    #     print("**********  " + str(goal))
+    #     for rule in state.context_rules:
+    #         found = state.try_rule(rule.expr, goal.expr, state.goals_map, True)
+
+    return []
+
+
 def try_rules(premises, target, rules, verbose=False):
     """This is where the heuristics come in.  We're trying to find a path from
     "rules" + "premises" to "target".
@@ -420,7 +637,7 @@ def try_rules(premises, target, rules, verbose=False):
             if rule_pos.premise < len(premises_list):
                 checked_all = False
                 premise = premises_list[rule_pos.premise]
-                exprs = try_rule(rule_pos.rule[0], premise[0], True)
+                exprs = try_rule(rule_pos.rule[0], premise[0], False)
 
                 if verbose:
                     print(str(premise[0]) + ' -> ' + repr(exprs))
@@ -449,12 +666,10 @@ def try_rules(premises, target, rules, verbose=False):
                                         collect_path(
                                             move_and_parent))) + collect_path(target)
 
-                                return True
-
                         made_new_expr = True
 
                         if is_rule(move):
-                            # Could this end up beina depth first search, if
+                            # Could this end up being a depth first search, if
                             # each rule creates a new rule?  Hmm.  If so, could
                             # replace the 'while' above with only looping up to
                             # the size of rules at the start.
@@ -474,7 +689,7 @@ def try_rules(premises, target, rules, verbose=False):
             if rule_pos.target < len(targets_list):
                 checked_all = False
                 target = targets_list[rule_pos.target]
-                exprs = try_rule(rule_pos.rule[0], target[0], False)
+                exprs = try_rule(rule_pos.rule[0], target[0], True)
 
                 if verbose:
                     print(str(target[0]) + ' -> ' + repr(exprs))

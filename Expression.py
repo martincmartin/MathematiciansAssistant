@@ -6,6 +6,12 @@
 # - DRY the parser, at least the Infix part.
 # - Write tests for the "pragma: no cover" comments in this source file
 #   (Expression.py), then remove the comments.
+# - Convert to Coq's notation:
+#   forall
+#   -> (implies, although also has => for defining functions)
+# - An iterator that allows looping over a list while we're appending to it.
+# - Change try_rule*() to only take a single "context", the union of the current
+#   context and context_rules, and partition based on is_rule.
 
 
 from enum import Enum, unique
