@@ -121,6 +121,9 @@ class Exprs:
     def relevant_rules(self):
         return self.exprs_rules
 
+    def __str__(self):
+        return str(self.exprs_map.values())
+
 
 class ProofState:
     def __init__(
@@ -564,7 +567,7 @@ def try_rules2(context, goal, context_rules, general_rules, verbose=False):
 
     # Step 1: apply context_rules to context_list.
     for cont in state.context.non_rules():
-        print("***********  " + str(cont.expr))
+        print("*** Forward ***  " + str(cont.expr))
         for rule in state.context.relevant_rules():
             print("Rule: " + str(rule.expr))
             found = state.try_rule(
@@ -576,11 +579,23 @@ def try_rules2(context, goal, context_rules, general_rules, verbose=False):
             if found:
                 return list(reversed(collect_path(found))) + collect_path(cont)
 
-    # # Step 2: simplification / transformations from the goal.
-    # for goal in state.goals_list:
-    #     print("**********  " + str(goal))
-    #     for rule in state.context_rules:
-    #         found = state.try_rule(rule.expr, goal.expr, state.goals_map, True)
+    # Step 2: simplification / transformations from the goal.
+    for goal in state.goals.non_rules():
+        print("*** Backward ***  " + str(goal.expr))
+        for rule in state.context.relevant_rules():
+            found = state.try_rule(
+                rule.expr,
+                goal.expr,
+                state.goals,
+                state.context,
+                True)
+            if found:
+                return []  # TODO: Fill me in.
+
+    print('************************  Final context:')
+    print('\n'.join([str(v.expr) for v in state.context]))
+    print('************************  Final goals:')
+    print('\n'.join([str(v.expr) for v in state.goals]))
 
     return []
 
