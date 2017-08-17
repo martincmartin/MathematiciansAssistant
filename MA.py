@@ -37,6 +37,21 @@ defB = forall(P, ex('P in B <==> P * M == M * P'))
 
 general_rules = [left_dist, right_dist, mult_associative]
 
+proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+                  [defB] + general_rules, True)
+for expr in proof:
+    print(expr)
+
+print('&&&&&&&&&&&  New Implementation  &&&&&&&&&&')
+
+proof = try_rules_brute_force([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+                              [defB] + general_rules, True)
+if proof:
+    for expr in proof:
+        print(expr)
+
+exit(1)
+
 proof = try_rules2([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
                    [defB], general_rules, True)
 

@@ -1,7 +1,7 @@
 from Expression import *
 from pprint import pprint
-from collections import namedtuple
-
+from typing import List, Sequence, Union, Dict, AbstractSet, cast, Iterable, MutableMapping, Type, Mapping, Tuple
+from abc import ABCMeta, abstractmethod
 
 # So we proved the first two problems, but using brute force.  Would like to
 # capture a more human method instead.  For example, we would like to work
@@ -68,7 +68,7 @@ from collections import namedtuple
 #
 # Limitations of the current theorem prover:
 #
-# - Only checks rules against premises and targets, not other rules.
+# - Only checks rules against premises and goals, not other rules.
 #
 # - Only true inference rules are modus ponens and substitution, although many
 #   others could be coded as axioms.  But not ==> introduction and maybe a few
@@ -84,80 +84,206 @@ from collections import namedtuple
 
 # TODO: Maybe separate out the "general_rules", since we'll need the concept of
 # sub-goals and provisional context for proving implications anyway?
+
+
+# Wish I could make this a NamedTuple, but recursively typed NamedTuples and
+# mypy are currently broken, see https://github.com/python/mypy/issues/3836
+# class ExprAndParent(NamedTuple):
+#    expr: Expression
+#    parent: 'ExprAndParent'
+
+class ExprAndParent:
+    _expr: Expression
+    _parent: 'ExprAndParent'
+
+    def __init__(self, expr: Expression, parent: 'ExprAndParent') -> None:
+        self._expr = expr
+        self._parent = parent
+
+    @property
+    def expr(self) -> Expression:
+        return self._expr
+
+    @property
+    def parent(self) -> 'ExprAndParent':
+        return self._parent
+
+
+class RulePosition:
+    rule: ExprAndParent
+    premise: int = 0
+    target: int = 0
+
+    def __init__(self,
+                 rule: Union[ExprAndParent, Expression],
+                 parent=None) -> None:
+        if isinstance(rule, ExprAndParent):
+            assert parent is None
+            self.rule = rule
+        else:
+            assert isinstance(rule, Expression)
+            self.rule = ExprAndParent(rule, parent)
+
+    def __repr__(self):
+        return '[premise: ' + str(self.premise) + ', target: ' + \
+            str(self.target) + ', rule: ' + str(self.rule.expr) + ']'
+
+
+# Maybe derive from abc collections Mapping?  Requires us to provide
+# __getitem__, __iter__ and __len__.  However, the __iter__ is the wrong type.
+# *sigh*.  Actually, we can make __iter__ work.
+class GoalExprsABC(Mapping[Expression, ExprAndParent]):
+    @abstractmethod
+    def all_exprs(self) -> Sequence[ExprAndParent]:
+        return []
+
+    @abstractmethod
+    def add(self, move_and_parent: ExprAndParent) -> None:
+        raise KeyError
+
+    def __repr__(self):
+        return '\n'.join(str(expr) for expr in self)
+
+
+class GoalExprsBruteForce(GoalExprsABC):
+    _exprs_list: Sequence[ExprAndParent]
+    _exprs_map: MutableMapping[Expression, ExprAndParent]
+
+    def __init__(self, exprs: Sequence[Expression]) -> None:
+        assert all(isinstance(e, Expression) for e in exprs)
+        self._exprs_list = [ExprAndParent(e, None) for e in exprs]
+        self._exprs_map = {
+            expr_and_parent.expr: expr_and_parent for expr_and_parent in self._exprs_list}
+
+    def __len__(self) -> int:
+        return len(self._exprs_list)
+
+    def __getitem__(self, key: Expression) -> ExprAndParent:
+        return self._exprs_map[key]
+
+    def __iter__(self) -> Iterable[Expression]:
+        return self._exprs_map.__iter__()
+
+    def all_exprs(self) -> Sequence[ExprAndParent]:
+        return self._exprs_list
+
+    def add(self, expr_and_parent: ExprAndParent) -> None:
+        self._exprs_list.append(expr_and_parent)
+        self._exprs_map[expr_and_parent.expr] = expr_and_parent
+
+
 class Exprs:
-    def __init__(self, exprs, general_rules):
+    exprs_list: List[ExprAndParent]
+    exprs_rules: List[RulePosition]
+    general_rules: List[RulePosition]
+    exprs_map: Dict[Expression, ExprAndParent]
+
+    def __init__(
+            self,
+            exprs: List[Expression],
+            general_rules: List[Expression]) -> None:
+        assert all(isinstance(e, Expression) for e in exprs)
+        assert all(isinstance(e, Expression) for e in general_rules)
         self.exprs_list = [ExprAndParent(e, None)
                            for e in exprs if not is_rule(e)]
-        self.exprs_rules = [ExprAndParent(e, None)
+        self.exprs_rules = [RulePosition(e, None)
                             for e in exprs if is_rule(e)]
 
         assert all(is_rule(r) for r in general_rules)
-        self.general_rules = [ExprAndParent(r, None) for r in general_rules]
+        self.general_rules = [RulePosition(r, None) for r in general_rules]
 
         self.exprs_map = {expr.expr: expr for expr in
-                          self.exprs_list + self.exprs_rules +
-                          self.general_rules}
+                          self.exprs_list +
+                          [r.rule for r in self.exprs_rules] +
+                          [r.rule for r in self.general_rules]}
 
-    def add(self, expr_and_parent):
+    def add(self, expr_and_parent: ExprAndParent):
         if is_rule(expr_and_parent.expr):
-            self.exprs_rules.append(expr_and_parent)
+            self.exprs_rules.append(RulePosition(expr_and_parent))
         else:
             self.exprs_list.append(expr_and_parent)
         self.exprs_map[expr_and_parent.expr] = expr_and_parent
 
-    def __contains__(self, expr):
+    def __contains__(self, expr: Expression) -> bool:
         return expr in self.exprs_map
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Expression) -> ExprAndParent:
         return self.exprs_map[key]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable[Expression]:
         # Could also return an iter over the concatenation of the 3 lists.
-        return self.exprs_map.values().__iter__()
+        return self.exprs_map.__iter__()
 
-    def non_rules(self):
+    def non_rules(self) -> List[ExprAndParent]:
         return self.exprs_list
 
-    def relevant_rules(self):
-        return self.exprs_rules
+    def relevant_rules(self) -> List[ExprAndParent]:
+        return [r.rule for r in self.exprs_rules]
 
-    def __str__(self):
+    def all_rules(self) -> List[RulePosition]:
+        return self.general_rules + self.exprs_rules
+
+    def all_exprs(self) -> List[ExprAndParent]:
+        # This won't work in general, because when we add a rule, it will change
+        # the index of all elements of exprs_list.  Oi.
+        return self.exprs_list + [r.rule for r in self.all_rules()]
+
+    def __str__(self) -> str:
         return str(self.exprs_map.values())
 
 
+# TODO: Type checking of ExprsClass using an abstract base class.
+
+
 class ProofState:
+    goals: GoalExprsABC
+    verbose: bool
+
     def __init__(
             self,
             context,
             goal,
             general_rules,
             ExprsClass,
-            verbose=False):
+            GoalExprsClass: Type[GoalExprsABC],
+            verbose):
         self.verbose = verbose
 
         self.context = ExprsClass(context, general_rules)
 
-        self.goals = ExprsClass([goal], [])
+        self.goals = GoalExprsClass([goal])
 
-    def is_instance(self, rule, expr):
-        subs = is_instance(rule, expr)
+    def is_instance(self, expr: Expression, rule: Expression):
+        subs = is_instance(expr, rule)
         if self.verbose and subs is not None:
             print(str(expr) + ' is an instance of ' +
                   str(rule) + ' subs ' + str(subs) + '  !!!!!!')
         return subs
 
-    def try_rule(self, rule, expr_in, already_seen, targets, backwards):
-        """TODO: allow backwards."""
-        exprs = try_rule(rule, expr_in, backwards)
+    def try_rule(
+            self,
+            rule: CompositeExpression,
+            expr_and_parent_in: ExprAndParent,
+            already_seen,
+            targets,
+            backwards: bool) -> Tuple[ExprAndParent, ExprAndParent]:
+        assert all(isinstance(t, Expression) for t in targets)
+
+        exprs = try_rule(rule, expr_and_parent_in.expr, backwards)
+        assert all(isinstance(e, Expression) for e in exprs)
 
         if self.verbose:
-            print(str(expr_in) + ' -> ' + repr(exprs))
+            print(
+                'try_rule: expr_in ' +
+                str(expr_and_parent_in.expr) +
+                ' becomes ' +
+                repr(exprs))
 
         for move in exprs:
             if move in already_seen:
                 continue
 
-            move_and_parent = ExprAndParent(move, expr_in)
+            move_and_parent = ExprAndParent(move, expr_and_parent_in)
 
             # Ideally, in the case of P in B -> P * M == M * P, we'd
             # recognize that the latter is equivalent to the former, and is
@@ -166,29 +292,33 @@ class ProofState:
             # "P in B" doesn't appear in the goal in any form, or in any
             # other premises, etc.  So we'll skip that for now.
 
-            found = self.match_against_exprs(move_and_parent, targets)
+            found = self.match_against_exprs(move, targets)
             if found:
-                return (move_and_parent, found)
+                assert isinstance(found, ExprAndParent)
+                return (found, move_and_parent)
             already_seen.add(move_and_parent)
 
-        return []
+        return None
 
-    def match_against_exprs(self, move_and_parent, targets):
-        """Determines whether move_and_parent.expr equals or is_instance any
+    def match_against_exprs(
+            self,
+            move: Expression,
+            targets) -> ExprAndParent:
+        """Determines whether move equals or is_instance any
         element of targets.
 
         If so, returns the element.  If not, returns None.
         """
-        move = move_and_parent.expr
         if move in targets:
             return targets[move]
+        assert all(isinstance(t, Expression) for t in targets)
 
-        return next((expr_and_parent for expr_and_parent in targets if
-                     self.is_instance(move, expr_and_parent.expr) is not None),
+        return next((targets[target] for target in targets if
+                     self.is_instance(move, target) is not None),
                     None)
 
 
-def match(dummies, pattern, target):
+def match(dummies: AbstractSet[Node], pattern: Expression, target: Expression):
     """Matches "pattern" against "target"s root, i.e. not recursively.
 
     "dummies" is the set of Nodes in "pattern" that can match any sub
@@ -201,6 +331,8 @@ def match(dummies, pattern, target):
     """
 
     assert isinstance(dummies, set)
+    assert isinstance(pattern, Expression)
+    assert isinstance(target, Expression)
 
     if isinstance(pattern, Node):
         if pattern in dummies:
@@ -237,12 +369,12 @@ def match(dummies, pattern, target):
     return ret
 
 
-def is_rule(expr):
-    """Predicate: returns True iff try_rule(expr, target, backwards) could
+def is_rule(expr: Expression) -> bool:
+    """Predicate. returns True iff try_rule(expr, target, backwards) could
     return a non-empty set for some target, either forwards or backwards.
     """
     if has_head(expr, ForAll):
-        return is_rule(expr[2])
+        return is_rule(cast(CompositeExpression, expr)[2])
 
     return has_head(expr, Implies) or \
         has_head(expr, Equivalent) or \
@@ -253,7 +385,11 @@ def try_rule(rule, target, backwards):
     return try_rule_recursive(set(), rule, target, backwards)
 
 
-def try_rule_recursive(dummies, rule, target, backwards):
+def try_rule_recursive(
+        dummies,
+        rule,
+        target,
+        backwards) -> AbstractSet[Expression]:
     """Try to apply "rule" to "target".  If rule is Implies, only applies it to
     "target"'s root.  If rule is Equivalent or Equal, applies it recursively.
     Returns a possibly empty set() of transformed expressions.
@@ -334,20 +470,23 @@ def recursive_match_and_substitute(dummies, to_match, replacement, target):
     return result
 
 
-def is_instance(rule, target, dummies=set()):
-    """Determines whether 'target' is an instance of 'rule.'
+def is_instance(expr: Expression, rule: Expression, dummies=set()):
+    """Determines whether 'expr' an instance of 'rule.'
 
     returns the substitution that makes them match, or None if there's no match.
 
     NOTE: Doesn't handle ForAll that's under anything other than more ForAlls.
     """
 
+    assert isinstance(expr, Expression)
+    assert isinstance(rule, Expression)
+
     if has_head(rule, ForAll):
         return is_instance(
-            rule[2], target, dummies.union(
-                rule.get_variables(dummies)))
+            expr, rule[2],
+            dummies.union(rule.get_variables(dummies)))
     else:
-        return match(dummies, rule, target)
+        return match(dummies, rule, expr)
 
 
 def substitute(subs, expr):
@@ -474,22 +613,24 @@ def path_length_helper(
                 paths_from_targets_to_root)
 
 
-class RulePosition:
-    def __init__(self, rule, parent):
-        self.premise = 0
-        self.target = 0
-        self.rule = (rule, parent)
-
-    def __repr__(self):
-        return '[premise: ' + str(self.premise) + ', target: ' + \
-            str(self.target) + ', rule: ' + str(self.rule[0]) + ']'
-
-
 def collect_path(start):
     ret = []
     while start is not None:
-        ret.append(start[0])
-        start = start[1]
+        if isinstance(start, ExprAndParent):
+            ret.append(start.expr)
+            start = start.parent
+        else:
+            ret.append(start[0])
+            start = start[1]
+    return ret
+
+
+def collect_path2(start: ExprAndParent) -> Sequence[ExprAndParent]:
+    ret = []
+    while start is not None:
+        assert isinstance(start, ExprAndParent)
+        ret.append(start.expr)
+        start = start.parent
     return ret
 
 
@@ -504,9 +645,6 @@ def collect_path(start):
 # we could start with some basic features, like what nodes are in it, even sub
 # trees to pattern match against, and of course path length and other structural
 # things.
-
-ExprAndParent = namedtuple('ExprAndParent', 'expr,parent')
-
 
 def try_rules2(context, goal, context_rules, general_rules, verbose=False):
     """context and context_rules are disjoint, all in context_rules satisfy
@@ -563,6 +701,7 @@ def try_rules2(context, goal, context_rules, general_rules, verbose=False):
         goal,
         general_rules,
         Exprs,
+        Exprs,
         verbose)
 
     # Step 1: apply context_rules to context_list.
@@ -572,12 +711,13 @@ def try_rules2(context, goal, context_rules, general_rules, verbose=False):
             print("Rule: " + str(rule.expr))
             found = state.try_rule(
                 rule.expr,
-                cont.expr,
+                cont,
                 state.context,
                 state.goals,
                 False)
             if found:
-                return list(reversed(collect_path(found))) + collect_path(cont)
+                return list(reversed(collect_path(
+                    found[0]))) + collect_path(found[1])
 
     # Step 2: simplification / transformations from the goal.
     for goal in state.goals.non_rules():
@@ -585,7 +725,7 @@ def try_rules2(context, goal, context_rules, general_rules, verbose=False):
         for rule in state.context.relevant_rules():
             found = state.try_rule(
                 rule.expr,
-                goal.expr,
+                goal,
                 state.goals,
                 state.context,
                 True)
@@ -598,6 +738,84 @@ def try_rules2(context, goal, context_rules, general_rules, verbose=False):
     print('\n'.join([str(v.expr) for v in state.goals]))
 
     return []
+
+
+def try_rules_brute_force(context, goal, rules, verbose=False):
+    state = ProofState(
+        context,
+        goal,
+        rules,
+        Exprs,
+        GoalExprsBruteForce,
+        verbose)
+
+    for iter in range(1000):
+        checked_all = True
+        rule_index = 0
+
+        if verbose:
+            print('+++++++++++++++  Pass ' + str(iter))
+
+        all_rules = state.context.all_rules()
+        while rule_index < len(all_rules):
+            rule_pos = all_rules[rule_index]
+            # rule_pos = rules[rule_index]
+            assert rule_pos.premise <= len(state.context.non_rules())
+            assert rule_pos.target <= len(state.goals.all_exprs())
+
+            if verbose:
+                print('********** Rule: ' + str(rule_pos))
+
+            # Work forward from the context.
+            if rule_pos.premise < len(state.context.non_rules()):
+                checked_all = False
+                print('context index: ' + str(rule_pos.premise))
+                context_expr = state.context.non_rules()[rule_pos.premise]
+                found = state.try_rule(
+                    rule_pos.rule.expr,
+                    context_expr,
+                    state.context,
+                    state.goals,
+                    False)
+                if found:
+                    return list(reversed(collect_path2(found[0]))) + \
+                        collect_path(found[1])
+
+                print('New context: ' + str(state.context))
+                print('context non rules: ' + str(state.context.non_rules()))
+                print('context relevant rules: ' +
+                      str(state.context.relevant_rules()))
+                rule_pos.premise += 1
+
+            # Try working backward from goal.
+            if rule_pos.target < len(state.goals.all_exprs()):
+                checked_all = False
+                goal_expr = state.goals.all_exprs()[rule_pos.target]
+                assert isinstance(goal_expr, ExprAndParent)
+                found = state.try_rule(
+                    rule_pos.rule.expr,
+                    goal_expr,
+                    state.goals,
+                    state.context,
+                    True)
+                if found:
+                    assert isinstance(found, tuple)
+                    assert isinstance(found[0], ExprAndParent)
+                    assert isinstance(found[1], ExprAndParent)
+
+                    return list(reversed(collect_path2(found[1]))) + \
+                        collect_path2(found[0])
+
+                rule_pos.target += 1
+
+            rule_index += 1
+
+        if checked_all:
+            print("##########  Couldn't prove.")
+            return None
+
+    print("##########  Ran out of iterations.")
+    return None
 
 
 def try_rules(premises, target, rules, verbose=False):
@@ -652,10 +870,10 @@ def try_rules(premises, target, rules, verbose=False):
             if rule_pos.premise < len(premises_list):
                 checked_all = False
                 premise = premises_list[rule_pos.premise]
-                exprs = try_rule(rule_pos.rule[0], premise[0], False)
+                exprs = try_rule(rule_pos.rule.expr, premise[0], False)
 
-                if verbose:
-                    print(str(premise[0]) + ' -> ' + repr(exprs))
+                if verbose and exprs:
+                    print(str(premise[0]) + ' becomes ' + repr(exprs))
 
                 for move in exprs:
                     if move not in premises_and_rules_set:
@@ -671,7 +889,7 @@ def try_rules(premises, target, rules, verbose=False):
                             subs = is_instance(move, target[0])
                             if subs is not None:
                                 if verbose:
-                                    print(str(target) +
+                                    print('New premise ' + str(target) +
                                           ' is an instance of ' +
                                           str(move) + ' subs ' +
                                           str(subs) + '  !!!!!!')
@@ -704,10 +922,10 @@ def try_rules(premises, target, rules, verbose=False):
             if rule_pos.target < len(targets_list):
                 checked_all = False
                 target = targets_list[rule_pos.target]
-                exprs = try_rule(rule_pos.rule[0], target[0], True)
+                exprs = try_rule(rule_pos.rule.expr, target[0], True)
 
-                if verbose:
-                    print(str(target[0]) + ' -> ' + repr(exprs))
+                if verbose and exprs:
+                    print(str(target[0]) + ' becomes ' + repr(exprs))
 
                 for move in exprs:
                     if move not in targets_set:
@@ -718,17 +936,18 @@ def try_rules(premises, target, rules, verbose=False):
                             return True
 
                         for rule_p in rules:
-                            subs = is_instance(rule_p.rule[0], move)
+                            subs = is_instance(move, rule_p.rule.expr)
                             if subs is not None:
                                 if verbose:
-                                    print(str(move) +
+                                    print('New target ' + str(move) +
                                           ' is an instance of ' +
-                                          str(rule_p.rule[0]) + ' subs ' +
+                                          str(rule_p.rule.expr) + ' subs ' +
                                           str(subs) + '  !!!!!!')
                                 return list(
                                     reversed(
                                         collect_path(
-                                            rule_p.rule[1]))) + collect_path(move_and_parent)
+                                            rule_p.rule))) + \
+                                    collect_path(move_and_parent)
 
                         made_new_expr = True
                         targets_list.append(move_and_parent)
