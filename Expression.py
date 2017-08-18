@@ -12,6 +12,7 @@
 # - An iterator that allows looping over a list while we're appending to it.
 # - Change try_rule*() to only take a single "context", the union of the current
 #   context and context_rules, and partition based on is_rule.
+# - Add more types.
 
 
 from enum import Enum, unique
