@@ -643,7 +643,7 @@ def collect_path2(start: ExprAndParent) -> Sequence[Expression]:
 # trees to pattern match against, and of course path length and other structural
 # things.
 
-def try_rules2(context, goal, context_rules, general_rules, verbose=False):
+def try_rules(context, goal, context_rules, general_rules, verbose=False):
     """context and context_rules are disjoint, all in context_rules satisfy
     is_rule(), whereas none of those in context do."""
 

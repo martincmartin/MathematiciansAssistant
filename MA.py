@@ -45,8 +45,8 @@ if proof:
 
 print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
 
-proof = try_rules2([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
-                   [defB], general_rules, True)
+proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+                  [defB], general_rules, True)
 
 # So, what we're calling 'rules' here aren't actually rules but axioms,
 # i.e. within the context of this problem, they're like premeses.  The only
@@ -56,16 +56,14 @@ rules = [defB, left_dist, right_dist, mult_associative]  # , equals_reflexive]
 
 # Dummit and Foote, problem 0.1.2
 print('\n\n**********  Problem 0.1.2')
-#proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'), rules)
-proof = try_rules2([ex('P in B'), ex('Q in B')],
-                   ex('P + Q in B'), [defB], general_rules, True)
+proof = try_rules([ex('P in B'), ex('Q in B')],
+                  ex('P + Q in B'), [defB], general_rules, True)
 print('\n'.join([str(p) for p in proof]))
 
 # Dummit and Foote, problem 0.1.3
 print('\n\n**********  Problem 0.1.3')
-# proof = try_rules([ex('P in B'), ex('Q in B')], ex('P * Q in B'), rules)
-proof = try_rules2([ex('P in B'), ex('Q in B')],
-                   ex('P * Q in B'), [defB], general_rules, True)
+proof = try_rules([ex('P in B'), ex('Q in B')],
+                  ex('P * Q in B'), [defB], general_rules, True)
 for p in proof:
     print(p)
 

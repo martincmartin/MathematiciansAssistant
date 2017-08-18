@@ -14,6 +14,11 @@
 #   context and context_rules, and partition based on is_rule.
 # - Add more types.
 
+# - Have unit (integration?) tests for the theorm prover.  Most general is that
+#   each step is logically valid.  We'd need a better representation of the
+#   proof though, a tree rather than a list.  More specific is that the proof is
+#   minimal, or near minimal, or doesn't have any obviously uneeded steps, etc.
+
 
 from enum import Enum, unique
 from functools import total_ordering
@@ -26,11 +31,11 @@ from typing import AbstractSet
 @total_ordering
 @unique
 class Precedence(Enum):
-    # This is only used for pretty-printing, not parsing, but needs to be kept in
-    # sync with parser in Parser.py.
-    #
-    # We should only use the ordering of these, not the actual value, because the
-    # values will change as we add more operators.
+    # This is only used for pretty-printing, not parsing, but needs to be kept
+    # in sync with parser in Parser.py.
+
+    # We should only use the ordering of these, not the actual value, because
+    # the values will change as we add more operators.
     FORALL_EXISTS = 1
     IMPLIES_EQUIV = 2
     AND_OR = 3
