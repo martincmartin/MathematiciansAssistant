@@ -1,6 +1,6 @@
 from Expression import *
 from pprint import pprint
-from typing import List, Sequence, Union, Dict, AbstractSet, cast, Iterable, MutableMapping, Type, Mapping, Tuple
+from typing import *
 from abc import ABCMeta, abstractmethod
 
 # So we proved the first two problems, but using brute force.  Would like to
@@ -134,6 +134,10 @@ class RulePosition:
 # *sigh*.  Actually, we can make __iter__ work.
 class GoalExprsABC(Mapping[Expression, ExprAndParent]):
     @abstractmethod
+    def __init__(self, goals: Sequence[Expression]) -> None:
+        pass
+
+    @abstractmethod
     def all_exprs(self) -> Sequence[ExprAndParent]:
         return []
 
@@ -146,7 +150,7 @@ class GoalExprsABC(Mapping[Expression, ExprAndParent]):
 
 
 class GoalExprsBruteForce(GoalExprsABC):
-    _exprs_list: Sequence[ExprAndParent]
+    _exprs_list: MutableSequence[ExprAndParent]
     _exprs_map: MutableMapping[Expression, ExprAndParent]
 
     def __init__(self, exprs: Sequence[Expression]) -> None:
@@ -161,7 +165,7 @@ class GoalExprsBruteForce(GoalExprsABC):
     def __getitem__(self, key: Expression) -> ExprAndParent:
         return self._exprs_map[key]
 
-    def __iter__(self) -> Iterable[Expression]:
+    def __iter__(self) -> Iterator[Expression]:
         return self._exprs_map.__iter__()
 
     def all_exprs(self) -> Sequence[ExprAndParent]:
@@ -246,7 +250,7 @@ class ProofState:
             general_rules,
             ExprsClass,
             GoalExprsClass: Type[GoalExprsABC],
-            verbose):
+            verbose: bool) -> None:
         self.verbose = verbose
 
         self.context = ExprsClass(context, general_rules)
@@ -346,14 +350,18 @@ def match(dummies: AbstractSet[Node], pattern: Expression, target: Expression):
             return {}
         return None
 
-    assert isinstance(pattern, CompositeExpression)
+    pattern = cast(CompositeExpression, pattern)
 
     # TODO: Allow something akin to *args, a pattern that matches any
     # number of remaining args.
-    if isinstance(target, Node) or len(pattern) != len(target):
+    if isinstance(target, Node):
+        return None
+    target = cast(CompositeExpression, target)
+
+    if len(pattern) != len(target):
         return None
 
-    ret = {}
+    ret: MutableMapping[Expression, Expression] = {}
     for p, t in zip(pattern, target):
         m = match(dummies, p, t)
         if m is None:
@@ -482,6 +490,7 @@ def is_instance(expr: Expression, rule: Expression, dummies=set()):
     assert isinstance(rule, Expression)
 
     if has_head(rule, ForAll):
+        rule = cast(CompositeExpression, rule)
         return is_instance(
             expr, rule[2],
             dummies.union(rule.get_variables(dummies)))
@@ -613,7 +622,7 @@ def path_length_helper(
                 paths_from_targets_to_root)
 
 
-def collect_path2(start: ExprAndParent) -> Sequence[ExprAndParent]:
+def collect_path2(start: ExprAndParent) -> Sequence[Expression]:
     ret = []
     while start is not None:
         assert isinstance(start, ExprAndParent)

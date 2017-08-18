@@ -17,8 +17,9 @@
 from enum import Enum, unique
 from functools import total_ordering
 from pprint import pprint
-
+from abc import ABCMeta, abstractmethod
 from collections import Hashable
+from typing import AbstractSet
 
 
 @total_ordering
@@ -71,6 +72,10 @@ class Expression:
     def __repr__(self):
         return self.repr_and_precedence()[0]
 
+    @abstractmethod
+    def free_variables(self, exclude)-> AbstractSet['Variable']:
+        return set()
+
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
     def get_variables(self, other_dummies):
@@ -101,12 +106,8 @@ class CompositeExpression(Expression, tuple):
         """
         return [e.declass() for e in self]
 
-    # Returns a set().
-    def free_variables(self, exclude):
-        result = set()
-        for x in self:
-            result = result.union(x.free_variables(exclude))
-        return result
+    def free_variables(self, exclude) -> AbstractSet['Variable']:
+        return {var for child in self for var in child.free_variables(exclude)}
 
 
 class Node(Expression):
@@ -277,7 +278,7 @@ class Variable(Node):
         return self.name
 
     # Returns a set().
-    def free_variables(self, exclude):
+    def free_variables(self, exclude) -> AbstractSet['Variable']:
         if self in exclude:
             return set()
         else:
