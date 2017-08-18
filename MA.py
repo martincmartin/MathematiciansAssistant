@@ -37,25 +37,18 @@ defB = forall(P, ex('P in B <==> P * M == M * P'))
 
 general_rules = [left_dist, right_dist, mult_associative]
 
-proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
-                  [defB] + general_rules, True)
-for expr in proof:
-    print(expr)
-
-print('&&&&&&&&&&&  New Implementation  &&&&&&&&&&')
-
 proof = try_rules_brute_force([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
                               [defB] + general_rules, True)
 if proof:
     for expr in proof:
         print(expr)
 
-exit(1)
+print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
 
 proof = try_rules2([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
                    [defB], general_rules, True)
 
-# exit(0)
+exit(0)
 
 # So, what we're calling 'rules' here aren't actually rules but axioms,
 # i.e. within the context of this problem, they're like premeses.  The only

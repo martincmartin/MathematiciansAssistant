@@ -181,7 +181,7 @@ class Exprs:
     def __init__(
             self,
             exprs: List[Expression],
-            general_rules: List[Expression]) -> None:
+            general_rules: List[Expression] = []) -> None:
         assert all(isinstance(e, Expression) for e in exprs)
         assert all(isinstance(e, Expression) for e in general_rules)
         self.exprs_list = [ExprAndParent(e, None)
@@ -613,18 +613,6 @@ def path_length_helper(
                 paths_from_targets_to_root)
 
 
-def collect_path(start):
-    ret = []
-    while start is not None:
-        if isinstance(start, ExprAndParent):
-            ret.append(start.expr)
-            start = start.parent
-        else:
-            ret.append(start[0])
-            start = start[1]
-    return ret
-
-
 def collect_path2(start: ExprAndParent) -> Sequence[ExprAndParent]:
     ret = []
     while start is not None:
@@ -733,9 +721,9 @@ def try_rules2(context, goal, context_rules, general_rules, verbose=False):
                 return []  # TODO: Fill me in.
 
     print('************************  Final context:')
-    print('\n'.join([str(v.expr) for v in state.context]))
+    print('\n'.join([str(v) for v in state.context]))
     print('************************  Final goals:')
-    print('\n'.join([str(v.expr) for v in state.goals]))
+    print('\n'.join([str(v) for v in state.goals]))
 
     return []
 
@@ -805,155 +793,6 @@ def try_rules_brute_force(context, goal, rules, verbose=False):
 
                     return list(reversed(collect_path2(found[1]))) + \
                         collect_path2(found[0])
-
-                rule_pos.target += 1
-
-            rule_index += 1
-
-        if checked_all:
-            print("##########  Couldn't prove.")
-            return None
-
-    print("##########  Ran out of iterations.")
-    return None
-
-
-def try_rules(premises, target, rules, verbose=False):
-    """This is where the heuristics come in.  We're trying to find a path from
-    "rules" + "premises" to "target".
-    """
-    # For now, we don't use any heuristics, just a search forward from premises
-    # and backwards from target.  When this proves too slow, we can switch to
-    # something smarter.
-
-    # There's a deduction rule (==> introduction) where we add an arbitrary
-    # expression to the premises, derive some conclusion, then we can add
-    # 'new_premise ==> conclusion' to the original set of premises.  But for
-    # now, we'll skip that rule.
-
-    premises_list = [(premise, None) for premise in premises]
-    premises_and_rules_set = set(premises + rules)
-
-    targets_list = [(target, None)]
-    targets_set = {target}
-
-    # The rules are really premises, or at least, ones with a root connective
-    # ==>, <==> or ==, possibly under any number of ForAlls.  And we'll want to
-    # add any such derived premises to the 'rules' list.  Hmm.
-
-    rules = [RulePosition(rule, None) for rule in rules]
-
-    # We want to keep the expressions in a list, and for each rule, apply it in
-    # order from index 0 on up.  Then for each rule, we simply need to keep the
-    # highest index that we've applied the rule to.  We still need a hash set to
-    # unique them.
-
-    # For now, we don't try to apply rules to other rules, just to premises and
-    # targets.  Although it would be easy...
-
-    for iter in range(1000):
-        checked_all = True
-        rule_index = 0
-
-        if verbose:
-            print('+++++++++++++++  Pass ' + str(iter))
-
-        while rule_index < len(rules):
-            rule_pos = rules[rule_index]
-            assert rule_pos.premise <= len(premises_list)
-            assert rule_pos.target <= len(targets_list)
-
-            if verbose:
-                print('********** Rule: ' + str(rule_pos))
-
-            # Apply rule to premises
-            if rule_pos.premise < len(premises_list):
-                checked_all = False
-                premise = premises_list[rule_pos.premise]
-                exprs = try_rule(rule_pos.rule.expr, premise[0], False)
-
-                if verbose and exprs:
-                    print(str(premise[0]) + ' becomes ' + repr(exprs))
-
-                for move in exprs:
-                    if move not in premises_and_rules_set:
-                        move_and_parent = (move, premise)
-                        # Are we there yet?
-                        if move in targets_set:
-                            if verbose:
-                                print(move)
-                            return True
-
-                        # We have a new premise / rule!
-                        for target in targets_list:
-                            subs = is_instance(move, target[0])
-                            if subs is not None:
-                                if verbose:
-                                    print('New premise ' + str(target) +
-                                          ' is an instance of ' +
-                                          str(move) + ' subs ' +
-                                          str(subs) + '  !!!!!!')
-
-                                return list(
-                                    reversed(
-                                        collect_path(
-                                            move_and_parent))) + collect_path(target)
-
-                        made_new_expr = True
-
-                        if is_rule(move):
-                            # Could this end up being a depth first search, if
-                            # each rule creates a new rule?  Hmm.  If so, could
-                            # replace the 'while' above with only looping up to
-                            # the size of rules at the start.
-                            rules.append(RulePosition(move, premise))
-                            if verbose:
-                                print('rules:  ' + str(move))
-                        else:
-                            premises_list.append(move_and_parent)
-                            if verbose:
-                                print('premises:  ' + str(move))
-
-                        premises_and_rules_set.add(move)
-
-                rule_pos.premise += 1
-
-            # Try working backward from target.
-            if rule_pos.target < len(targets_list):
-                checked_all = False
-                target = targets_list[rule_pos.target]
-                exprs = try_rule(rule_pos.rule.expr, target[0], True)
-
-                if verbose and exprs:
-                    print(str(target[0]) + ' becomes ' + repr(exprs))
-
-                for move in exprs:
-                    if move not in targets_set:
-                        move_and_parent = (move, target)
-                        if move in premises_and_rules_set:
-                            if verbose:
-                                print(move_and_parent)
-                            return True
-
-                        for rule_p in rules:
-                            subs = is_instance(move, rule_p.rule.expr)
-                            if subs is not None:
-                                if verbose:
-                                    print('New target ' + str(move) +
-                                          ' is an instance of ' +
-                                          str(rule_p.rule.expr) + ' subs ' +
-                                          str(subs) + '  !!!!!!')
-                                return list(
-                                    reversed(
-                                        collect_path(
-                                            rule_p.rule))) + \
-                                    collect_path(move_and_parent)
-
-                        made_new_expr = True
-                        targets_list.append(move_and_parent)
-                        targets_set.add(move)
-                        if verbose:
-                            print('targets:  ' + str(move))
 
                 rule_pos.target += 1
 
