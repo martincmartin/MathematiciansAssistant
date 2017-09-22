@@ -1,3 +1,32 @@
+# To check & run:
+#
+# coverage run --branch test_MA.py && coverage report --show-missing
+# mypy .
+# python3 MA.py
+
+# What language should I ultimately do this in?
+#
+# Actual mathematicians / scientists only use Mathematica and Sage, not Coq or
+# OCaml or anything so "exotic."  Plus, although Coq is great for logic and
+# theorm proving, it can't do "regular" math, e.g. differentiate, find poles,
+# etc.  So, I think I need to add theorem proving to Mathematica or Sage.
+#
+# Mathematica is sucks as a general programming language.  It doesn't have
+# structures.  You can simulate them, kinda, with an (unevaluted) function of
+# the form MyType[field1, field2].  Then you can make helper functions,
+# e.g. Field1[x_MyType] = (some way to get the first arg).  But its kind of
+# hacky, its non standard, there's no inheritence, there's no static checking,
+# etc.
+#
+# So I guess Sage is the way to go.  That's a shame, because Coq has a great
+# foundation for the logic / proof side of what I want to do.  And I like OCaml
+# better as a language than Python.  Oh well.
+#
+# A Google search confirms there's no theorm proving library for Sage, and no
+# interface to call Coq.  I suppose I could always call into Coq from Sage?
+# Recreating Coq in Sage would be fun, but seems like a lot of busy work,
+# and wouldn't incorporate any improvements done to Coq.
+
 from Expression import *
 import Parser
 from Deduction import *
@@ -45,8 +74,17 @@ if proof:
 
 print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
 
+
+
 proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
                   [defB], general_rules, True)
+
+if not proof:
+    exit(1)
+
+for p in proof:
+    print(p)
+
 
 # So, what we're calling 'rules' here aren't actually rules but axioms,
 # i.e. within the context of this problem, they're like premeses.  The only
@@ -58,12 +96,19 @@ rules = [defB, left_dist, right_dist, mult_associative]  # , equals_reflexive]
 print('\n\n**********  Problem 0.1.2')
 proof = try_rules([ex('P in B'), ex('Q in B')],
                   ex('P + Q in B'), [defB], general_rules, True)
-print('\n'.join([str(p) for p in proof]))
+if not proof:
+    exit(1)
+
+for p in proof:
+    print(p)
 
 # Dummit and Foote, problem 0.1.3
 print('\n\n**********  Problem 0.1.3')
 proof = try_rules([ex('P in B'), ex('Q in B')],
                   ex('P * Q in B'), [defB], general_rules, True)
+if not proof:
+    exit(1)
+
 for p in proof:
     print(p)
 

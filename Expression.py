@@ -80,7 +80,7 @@ class Expression:
 
     @abstractmethod
     def free_variables(self, exclude)-> AbstractSet['Variable']:
-        return set()
+        return set()  # pragma: no cover
 
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
@@ -156,7 +156,12 @@ class Node(Expression):
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
 # least for this sort of mathematical pattern matching code.
-def has_head(expr, clz):
+def has_head(expr: Expression, clz: type) -> bool:
+    """
+    :rtype: bool
+    """
+    assert isinstance(expr, Expression)
+    assert isinstance(clz, type)
     return isinstance(expr, CompositeExpression) and isinstance(expr[0], clz)
 
 

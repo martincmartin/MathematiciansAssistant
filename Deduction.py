@@ -1,7 +1,9 @@
 from Expression import *
-from pprint import pprint
+# from pprint import pprint
 from typing import *
-from abc import ABCMeta, abstractmethod
+# from abc import ABCMeta, abstractmethod
+from enum import Enum, auto
+
 
 # So we proved the first two problems, but using brute force.  Would like to
 # capture a more human method instead.  For example, we would like to work
@@ -96,7 +98,7 @@ class ExprAndParent:
     _expr: Expression
     _parent: 'ExprAndParent'
 
-    def __init__(self, expr: Expression, parent: 'ExprAndParent') -> None:
+    def __init__(self, expr: Expression, parent: Optional['ExprAndParent']) -> None:
         self._expr = expr
         self._parent = parent
 
@@ -129,6 +131,12 @@ class RulePosition:
             str(self.target) + ', rule: ' + str(self.rule.expr) + ']'
 
 
+class Direction(Enum):
+    FORWARD = auto()
+    BACKWARD = auto()
+    BOTH = auto()
+
+
 # Maybe derive from abc collections Mapping?  Requires us to provide
 # __getitem__, __iter__ and __len__.  However, the __iter__ is the wrong type.
 # *sigh*.  Actually, we can make __iter__ work.
@@ -154,6 +162,7 @@ class GoalExprsBruteForce(GoalExprsABC):
     _exprs_map: MutableMapping[Expression, ExprAndParent]
 
     def __init__(self, exprs: Sequence[Expression]) -> None:
+        super().__init__(self)
         assert all(isinstance(e, Expression) for e in exprs)
         self._exprs_list = [ExprAndParent(e, None) for e in exprs]
         self._exprs_map = {
@@ -176,7 +185,7 @@ class GoalExprsBruteForce(GoalExprsABC):
         self._exprs_map[expr_and_parent.expr] = expr_and_parent
 
 
-class Exprs:
+class Exprs(GoalExprsABC):
     exprs_list: List[ExprAndParent]
     exprs_rules: List[RulePosition]
     general_rules: List[RulePosition]
@@ -185,7 +194,10 @@ class Exprs:
     def __init__(
             self,
             exprs: List[Expression],
-            general_rules: List[Expression] = []) -> None:
+            general_rules: List[Expression] = None) -> None:
+        super().__init__(exprs)
+        if general_rules is None:
+            general_rules = []
         assert all(isinstance(e, Expression) for e in exprs)
         assert all(isinstance(e, Expression) for e in general_rules)
         self.exprs_list = [ExprAndParent(e, None)
@@ -218,6 +230,9 @@ class Exprs:
         # Could also return an iter over the concatenation of the 3 lists.
         return self.exprs_map.__iter__()
 
+    def __len__(self) -> int:
+        return len(self.exprs_map)
+
     def non_rules(self) -> List[ExprAndParent]:
         return self.exprs_list
 
@@ -226,6 +241,12 @@ class Exprs:
 
     def all_rules(self) -> List[RulePosition]:
         return self.general_rules + self.exprs_rules
+
+    def equalities(self) -> Sequence[ExprAndParent]:
+        return [
+            rule_pos.rule for rule_pos in self.exprs_rules +
+            self.general_rules if is_equality(
+                rule_pos.rule.expr)]
 
     def all_exprs(self) -> List[ExprAndParent]:
         # This won't work in general, because when we add a rule, it will change
@@ -242,20 +263,14 @@ class Exprs:
 class ProofState:
     goals: GoalExprsABC
     verbose: bool
+    context: Exprs
 
-    def __init__(
-            self,
-            context,
-            goal,
-            general_rules,
-            ExprsClass,
-            GoalExprsClass: Type[GoalExprsABC],
-            verbose: bool) -> None:
+    def __init__(self, context, goal, general_rules, goal_exprs_class: Type[GoalExprsABC], verbose: bool) -> None:
         self.verbose = verbose
 
-        self.context = ExprsClass(context, general_rules)
+        self.context = Exprs(context, general_rules)
 
-        self.goals = GoalExprsClass([goal])
+        self.goals = goal_exprs_class([goal])
 
     def is_instance(self, expr: Expression, rule: Expression):
         subs = is_instance(expr, rule)
@@ -270,10 +285,15 @@ class ProofState:
             expr_and_parent_in: ExprAndParent,
             already_seen,
             targets,
-            backwards: bool) -> Tuple[ExprAndParent, ExprAndParent]:
+            direction: Direction) -> Union[bool, Tuple[ExprAndParent, ExprAndParent]]:
+        """If it finds a solution, returns a tuple of the path within
+        already_seen, and the path within targets.  If it doesn't find a
+        solution, returns a bool as to whether or not it at least generated a
+        new expression which it added to already_seen.
+        """
         assert all(isinstance(t, Expression) for t in targets)
 
-        exprs = try_rule(rule, expr_and_parent_in.expr, backwards)
+        exprs = try_rule(rule, expr_and_parent_in.expr, direction)
         assert all(isinstance(e, Expression) for e in exprs)
 
         if self.verbose:
@@ -283,6 +303,7 @@ class ProofState:
                 ' becomes ' +
                 repr(exprs))
 
+        added = False
         for move in exprs:
             if move in already_seen:
                 continue
@@ -301,8 +322,9 @@ class ProofState:
                 assert isinstance(found, ExprAndParent)
                 return (found, move_and_parent)
             already_seen.add(move_and_parent)
+            added = True
 
-        return None
+        return added
 
     def match_against_exprs(
             self,
@@ -377,6 +399,28 @@ def match(dummies: AbstractSet[Node], pattern: Expression, target: Expression):
     return ret
 
 
+def is_equality(expr: Expression) -> bool:
+    """Predicate. returns True iff expr is a (possibly universally quantified)
+    equality.
+    """
+    if has_head(expr, ForAll):
+        return is_equality(cast(CompositeExpression, expr)[2])
+
+    return has_head(expr, Equal)
+
+
+def get_lhs(expr: Expression) -> Expression:
+    assert is_equality(expr)
+    while has_head(expr, ForAll):
+        expr = cast(CompositeExpression, expr)
+        # Need to do something with the variables here.  Hmm.  Maybe this is why
+        # logic traditionally has the concept of free vs bound variables?
+        expr = expr[2]
+    assert has_head(expr, Equal)
+    expr = cast(CompositeExpression, expr)
+    return expr[1]
+
+
 def is_rule(expr: Expression) -> bool:
     """Predicate. returns True iff try_rule(expr, target, backwards) could
     return a non-empty set for some target, either forwards or backwards.
@@ -389,21 +433,21 @@ def is_rule(expr: Expression) -> bool:
         has_head(expr, Equal)
 
 
-def try_rule(rule, target, backwards):
-    return try_rule_recursive(set(), rule, target, backwards)
+def try_rule(rule, target, direction: Direction):
+    return try_rule_recursive(set(), rule, target, direction)
 
 
 def try_rule_recursive(
         dummies,
         rule,
         target,
-        backwards) -> AbstractSet[Expression]:
+        direction: Direction) -> AbstractSet[Expression]:
     """Try to apply "rule" to "target".  If rule is Implies, only applies it to
     "target"'s root.  If rule is Equivalent or Equal, applies it recursively.
     Returns a possibly empty set() of transformed expressions.
     """
     assert isinstance(dummies, set)
-    assert isinstance(backwards, bool)
+    assert isinstance(direction, Direction)
 
     if has_head(rule, ForAll):
         # For "forall" we add the variables to dummies and recurse.
@@ -413,16 +457,16 @@ def try_rule_recursive(
             dummies.union(rule.get_variables(dummies)),
             rule[2],
             target,
-            backwards)
+            direction)
 
     if has_head(rule, Implies):
         # For ==>, if we're working backwards from the conclusion, we see if we
         # can match the RHS, and if so, we return the LHS, with appropriate
         # substitutions and free variables.  If we're working forwards, we match
         # the LHS and substitue on the RHS.
-        if backwards:
+        if direction == Direction.BACKWARD:
             return match_and_substitute(dummies, rule[2], rule[1], target)
-        else:
+        elif direction == Direction.FORWARD:
             return match_and_substitute(dummies, rule[1], rule[2], target)
 
     if has_head(rule, Equivalent) or has_head(rule, Equal):
@@ -552,7 +596,7 @@ class PathToRoot:
         self.depth = parent.depth + 1 if parent else 0
 
 
-# Returns the number of edgues between node1 and node2.  For example, in
+# Returns the number of edges between node1 and node2.  For example, in
 # M * (P + Q), there are 3 edges between M and P: M -> *, * -> + and + -> P.
 def path_length(node1, node2, expr):
     assert node1 != node2  # TODO: Handle when the nodes are the same.
@@ -622,7 +666,7 @@ def path_length_helper(
                 paths_from_targets_to_root)
 
 
-def collect_path2(start: ExprAndParent) -> Sequence[Expression]:
+def collect_path(start: ExprAndParent) -> Sequence[Expression]:
     ret = []
     while start is not None:
         assert isinstance(start, ExprAndParent)
@@ -693,41 +737,54 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
     #   now, always the LHS) and try to transform it into the RHS by working
     #   forward.
 
-    state = ProofState(
-        context + context_rules,
-        goal,
-        general_rules,
-        Exprs,
-        Exprs,
-        verbose)
+    state = ProofState(context + context_rules, goal, general_rules, Exprs, verbose)
 
-    # Step 1: apply context_rules to context_list.
-    for cont in state.context.non_rules():
-        print("*** Forward ***  " + str(cont.expr))
-        for rule in state.context.relevant_rules():
-            print("Rule: " + str(rule.expr))
-            found = state.try_rule(
-                rule.expr,
-                cont,
-                state.context,
-                state.goals,
-                False)
-            if found:
-                return list(reversed(collect_path(
-                    found[0]))) + collect_path(found[1])
+    while True:
+        made_progress = False
+        # Step 1: apply context_rules to context_list.
+        for cont in state.context.non_rules():
+            print("*** Forward ***  " + str(cont.expr))
+            for rule in state.context.relevant_rules():
+                print("Rule: " + str(rule.expr))
+                found = state.try_rule(
+                    rule.expr,
+                    cont,
+                    state.context,
+                    state.goals,
+                    Direction.FORWARD)
+                if isinstance(found, tuple):
+                    return list(reversed(collect_path(
+                        found[0]))) + collect_path(found[1])
+                else:
+                    made_progress |= found
 
-    # Step 2: simplification / transformations from the goal.
-    for goal in state.goals.non_rules():
-        print("*** Backward ***  " + str(goal.expr))
-        for rule in state.context.relevant_rules():
-            found = state.try_rule(
-                rule.expr,
-                goal,
-                state.goals,
-                state.context,
-                True)
-            if found:
-                return []  # TODO: Fill me in.
+        # Step 2: simplification / transformations from the goal.
+        for goal in state.goals.non_rules():
+            print("*** Backward ***  " + str(goal.expr))
+            for rule in state.context.relevant_rules():
+                found = state.try_rule(
+                    rule.expr,
+                    goal,
+                    state.goals,
+                    state.context,
+                    Direction.BACKWARD)
+                if isinstance(found, tuple):
+                    return []  # TODO: Fill me in.
+                else:
+                    made_progress |= found
+
+        if not made_progress:
+            break
+
+    # Now, for each goal that's a possibly universally quantified equality, grab
+    # the LHS and try to transform it into the RHS.
+    for goal in state.goals.equalities():
+        assert has_head(goal.expr, Equal)
+        lhs, rhs = goal.expr[1:]
+        print('LHS: ' + str(lhs))
+        for rule in state.context.all_rules():
+            found = state.try_rule(rule.rule.expr, goal, state.goals, state.context, Direction.BOTH)
+        # 'For now, we need to only apply equality rules and iff rules.  Actually, the LHS isnt a proposition, but rather a value.  Might be time to create types.' += 1
 
     print('************************  Final context:')
     print('\n'.join([str(v) for v in state.context]))
@@ -738,13 +795,7 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
 
 
 def try_rules_brute_force(context, goal, rules, verbose=False):
-    state = ProofState(
-        context,
-        goal,
-        rules,
-        Exprs,
-        GoalExprsBruteForce,
-        verbose)
+    state = ProofState(context, goal, rules, GoalExprsBruteForce, verbose)
 
     for iter in range(1000):
         checked_all = True
@@ -773,9 +824,9 @@ def try_rules_brute_force(context, goal, rules, verbose=False):
                     context_expr,
                     state.context,
                     state.goals,
-                    False)
-                if found:
-                    return list(reversed(collect_path2(found[0]))) + \
+                    Direction.FORWARD)
+                if isinstance(found, tuple):
+                    return list(reversed(collect_path(found[0]))) + \
                         collect_path(found[1])
 
                 print('New context: ' + str(state.context))
@@ -794,14 +845,14 @@ def try_rules_brute_force(context, goal, rules, verbose=False):
                     goal_expr,
                     state.goals,
                     state.context,
-                    True)
-                if found:
+                    Direction.BACKWARD)
+                if isinstance(found, tuple):
                     assert isinstance(found, tuple)
                     assert isinstance(found[0], ExprAndParent)
                     assert isinstance(found[1], ExprAndParent)
 
-                    return list(reversed(collect_path2(found[1]))) + \
-                        collect_path2(found[0])
+                    return list(reversed(collect_path(found[1]))) + \
+                        collect_path(found[0])
 
                 rule_pos.target += 1
 
@@ -813,3 +864,33 @@ def try_rules_brute_force(context, goal, rules, verbose=False):
 
     print("##########  Ran out of iterations.")
     return None
+
+
+'''
+def blah():
+    import Parser
+
+    def ex(input):
+        return Parser.parse(input)
+
+    A = var('A')
+    M = var('M')
+    B = var('B')
+    P = var('P')
+    Q = var('Q')
+    R = var('R')
+
+    mult_associative = forall((P, Q, R), ex('(P * Q) * R == P * (Q * R)'))
+
+    # Multiplication distributes over addition
+    left_dist = forall((P, Q, R), ex('R * (P + Q) == R * P + R * Q'))
+    right_dist = forall((P, Q, R), ex('(P + Q) * R == P * R + Q * R'))
+
+    # This is the definition of B:
+    defB = forall(P, ex('P in B <==> P * M == M * P'))
+
+    general_rules = [left_dist, right_dist, mult_associative]
+
+    proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+                      [defB], general_rules, True)
+'''
