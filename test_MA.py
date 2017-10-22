@@ -223,49 +223,49 @@ class TestTryRule(unittest.TestCase):
         self.assertEqual(
             try_rule(forall((P, Q, R), ex('(P + Q) * R == P * R + Q * R')),
                      ex('P + Q in B'),
-                     True),  # backwards
+                     Direction.BACKWARD),
             set())
 
     def test_modus_tollens(self):
         self.assertEqual(
             try_rule(forall((P, Q), ex('((P ==> Q) and not Q) ==> not P')),
                      ex('not B'),
-                     True),  # backwards
+                     Direction.BACKWARD),
             {ex('(B ==> Q) and not Q')})
 
     def test_modus_ponens(self):
         self.assertEqual(
             try_rule(forall((P, Q), ex('((P ==> Q) and P) ==> Q')),
                      ex('(A ==> B) and A'),
-                     False),  # not backwards, i.e. forwards
+                     Direction.FORWARD),
             {ex('B')})
 
     def test_definition_of_set(self):
         self.assertEqual(
             try_rule(forall(P, ex("P in B <==> P * M == M * P")),
                      ex("P + Q in B"),
-                     True),  # backwards
+                     Direction.BACKWARD),
             {ex('(P + Q) * M == M * (P + Q)')})
 
     def test_distribute_right(self):
         self.assertEqual(
             try_rule(forall((A, B, R), ex('(A + B) * R == A * R + B * R')),
                      ex('(P + Q) * M == M * (P + Q)'),
-                     True),  # backwards
+                     Direction.BACKWARD),
             {ex('P * M + Q * M == M * (P + Q)')})
 
     def test_distribute_left(self):
         self.assertEqual(
             try_rule(forall((A, B, R), ex('R * (A + B) == R * A + R * B')),
                      ex('P * M + Q * M == M * (P + Q)'),
-                     True),  # backwards
+                     Direction.BACKWARD),
             {ex('P * M + Q * M == M * P + M * Q')})
 
     def test_known_property_of_P(self):
         self.assertEqual(
             try_rule(ex('P * M == M * P'),
                      ex('P * M + Q * M == M * P + M * Q'),
-                     True),  # backwards
+                     Direction.BACKWARD),
             {ex('M * P + Q * M == M * P + M * Q'),
              ex('P * M + Q * M == P * M + M * Q')})
 
@@ -273,7 +273,7 @@ class TestTryRule(unittest.TestCase):
         self.assertEqual(
             try_rule(ex('Q * M == M * Q'),
                      ex('P * M + Q * M == M * P + M * Q'),
-                     True),  # backwards
+                     Direction.BACKWARD),
             {ex('P * M + M * Q == M * P + M * Q'),
              ex('P * M + Q * M == M * P + Q * M')})
 
@@ -281,7 +281,7 @@ class TestTryRule(unittest.TestCase):
         self.assertEqual(
             try_rule(forall((P, Q, R), ex('P + Q == P + R <==> Q == R')),
                      ex('M * P + Q * M == M * P + M * Q'),
-                     True),  # backwards
+                     Direction.BACKWARD),
             {ex('Q * M == M * Q'),
              ex('P + (M * P + Q * M) == P + (M * P + M * Q)')})
 
@@ -289,28 +289,28 @@ class TestTryRule(unittest.TestCase):
         self.assertEqual(
             try_rule(forall(P, ex('P or not P')),
                      ex('A and B'),
-                     True),  # backwards
+                     Direction.BACKWARD),  # backwards
             set())
 
     def test_match_under_match(self):
         self.assertEqual(
             try_rule(forall((A, B), ex('A + B == B + A')),
                      ex('X + Y + Z'),
-                     True),  # backwards
+                     Direction.BACKWARD),  # backwards
             {ex('Z + (X + Y)'), ex('Y + X + Z')})
 
     def test_not_recursive(self):
         self.assertEqual(
             try_rule(forall((P, Q), ex('P and Q ==> P')),
                      ex('not ( P and Q)'),
-                     False),  # backwards
+                     Direction.FORWARD),  # backwards
             set())
 
     def test_only_match_boolean(self):
         self.assertEqual(
             try_rule(forall((P,), ex('P and P <==> P')),
                      ex('A and B'),
-                     True),  # backwards
+                     Direction.BACKWARD),  # backwards
             {ex('(A and A) and B'),
              ex('(A and B) and (A and B)'),
              ex('A and (B and B)')})
