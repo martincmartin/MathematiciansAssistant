@@ -287,7 +287,7 @@ class TestTryRule(unittest.TestCase):
 
     def test_no_match(self):
         self.assertEqual(
-            try_rule(forall(P, ex('P or not P')),
+            try_rule(forall(P, ex('P + Q == Q + P')),
                      ex('A and B'),
                      Direction.BACKWARD),  # backwards
             set())

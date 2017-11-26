@@ -83,7 +83,6 @@ from enum import Enum, auto
 #
 # - Assumes rules only apply to single expression, so can't do "and
 #   introduction" for example.
-
 # TODO: Maybe separate out the "general_rules", since we'll need the concept of
 # sub-goals and provisional context for proving implications anyway?
 
@@ -98,7 +97,8 @@ class ExprAndParent:
     _expr: Expression
     _parent: 'ExprAndParent'
 
-    def __init__(self, expr: Expression, parent: Optional['ExprAndParent']) -> None:
+    def __init__(self, expr: Expression,
+                 parent: Optional['ExprAndParent']) -> None:
         self._expr = expr
         self._parent = parent
 
@@ -128,7 +128,7 @@ class RulePosition:
 
     def __repr__(self):
         return '[premise: ' + str(self.premise) + ', target: ' + \
-            str(self.target) + ', rule: ' + str(self.rule.expr) + ']'
+               str(self.target) + ', rule: ' + str(self.rule.expr) + ']'
 
 
 class Direction(Enum):
@@ -141,6 +141,7 @@ class Direction(Enum):
 # __getitem__, __iter__ and __len__.  However, the __iter__ is the wrong type.
 # *sigh*.  Actually, we can make __iter__ work.
 class GoalExprsABC(Mapping[Expression, ExprAndParent]):
+    # noinspection PyUnusedLocal
     @abstractmethod
     def __init__(self, goals: Sequence[Expression]) -> None:
         pass
@@ -166,7 +167,8 @@ class GoalExprsBruteForce(GoalExprsABC):
         assert all(isinstance(e, Expression) for e in exprs)
         self._exprs_list = [ExprAndParent(e, None) for e in exprs]
         self._exprs_map = {
-            expr_and_parent.expr: expr_and_parent for expr_and_parent in self._exprs_list}
+            expr_and_parent.expr: expr_and_parent for expr_and_parent in
+            self._exprs_list}
 
     def __len__(self) -> int:
         return len(self._exprs_list)
@@ -185,6 +187,7 @@ class GoalExprsBruteForce(GoalExprsABC):
         self._exprs_map[expr_and_parent.expr] = expr_and_parent
 
 
+"Refactor to link go general_rules in separate exprs."
 class Exprs(GoalExprsABC):
     exprs_list: List[ExprAndParent]
     exprs_rules: List[RulePosition]
@@ -244,9 +247,9 @@ class Exprs(GoalExprsABC):
 
     def equalities(self) -> Sequence[ExprAndParent]:
         return [
-            rule_pos.rule for rule_pos in self.exprs_rules +
-            self.general_rules if is_equality(
-                rule_pos.rule.expr)]
+            rule_pos.rule for rule_pos
+            in self.exprs_rules + self.general_rules
+            if is_equality(rule_pos.rule.expr)]
 
     def all_exprs(self) -> List[ExprAndParent]:
         # This won't work in general, because when we add a rule, it will change
@@ -265,7 +268,8 @@ class ProofState:
     verbose: bool
     context: Exprs
 
-    def __init__(self, context, goal, general_rules, goal_exprs_class: Type[GoalExprsABC], verbose: bool) -> None:
+    def __init__(self, context, goal, general_rules,
+                 goal_exprs_class: Type[GoalExprsABC], verbose: bool) -> None:
         self.verbose = verbose
 
         self.context = Exprs(context, general_rules)
@@ -285,7 +289,8 @@ class ProofState:
             expr_and_parent_in: ExprAndParent,
             already_seen: GoalExprsABC,
             targets: Mapping[Expression, ExprAndParent],
-            direction: Direction) -> Union[bool, Tuple[ExprAndParent, ExprAndParent]]:
+            direction: Direction) -> \
+            Union[bool, Tuple[ExprAndParent, ExprAndParent]]:
         """If it finds a solution, returns a tuple of the path within
         already_seen, and the path within targets.  If it doesn't find a
         solution, returns a bool as to whether or not it at least generated a
@@ -346,7 +351,9 @@ class ProofState:
                     None)
 
 
-def match(dummies: AbstractSet[Node], pattern: Expression, target: Expression) -> Optional[Mapping[Expression, Expression]]:
+def match(dummies: AbstractSet[Node], pattern: Expression,
+          target: Expression) -> \
+        Optional[Mapping[Expression, Expression]]:
     """Matches "pattern" against "target"s root, i.e. not recursively.
 
     "dummies" is the set of Nodes in "pattern" that can match any sub
@@ -547,7 +554,8 @@ def is_instance(expr: Expression, rule: Expression, dummies=set()):
 
 
 def substitute(subs, expr):
-    """Given an expression, and a hash from vars to subexpressions, substitute the
+    """Given an expression, and a hash from vars to subexpressions,
+    substitute the
     subexspressions into the vars."""
     assert isinstance(subs, dict)
     # What to do about unsubstituted dummies??  I guess just add a
@@ -643,7 +651,7 @@ def path_length(node1, node2, expr):
             assert thing1.depth == thing2.depth
 
             path_len = (path1.depth - thing1.depth) + \
-                (path2.depth - thing1.depth)
+                       (path2.depth - thing1.depth)
             ret.append((path_len, path1.node, path2.node))
     # Sort by path_len.
     ret.sort(key=lambda x: x[0])
@@ -741,7 +749,8 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
     #   now, always the LHS) and try to transform it into the RHS by working
     #   forward.
 
-    state = ProofState(context + context_rules, goal, general_rules, Exprs, verbose)
+    state = ProofState(context + context_rules, goal, general_rules, Exprs,
+                       verbose)
 
     while True:
         made_progress = False
@@ -783,19 +792,22 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
 
     while True:
         made_progress = False
-        # Now, for each goal that's a possibly universally quantified equality, grab
-        # the LHS and try to transform it into the RHS.
+        # Now, for each goal that's a possibly universally quantified equality,
+        # grab the LHS and try to transform it into the RHS.
         for goal in cast(Exprs, state.goals).equalities():
             assert has_head(goal.expr, Equal)
             goal_expr = cast(CompositeExpression, goal.expr)
             lhs = ExprAndParent(goal_expr[1], goal.parent)
             targets = {goal_expr[2]: ExprAndParent(goal_expr[2], goal.parent)}
-            print('goal: '+str(goal.expr) + ', LHS: ' + str(lhs.expr))
-            # I think this is where we need a chaining context thing.  "The set of things that we know, given our assumptions."
-            # Could be plugged into GoalsExprsABC framework, I think.  The only methods that try_rule() uses
+            print('goal: ' + str(goal.expr) + ', LHS: ' + str(lhs.expr))
+            # I think this is where we need a chaining context thing.  "The set
+            # of things that we know, given our assumptions."
+            # Could be plugged into GoalsExprsABC framework, I think.  The only
+            # methods that try_rule() uses
             # are "in" and "add()".
             for rule in state.context.all_rules():
-                found = state.try_rule(rule.rule.expr, lhs, state.context, targets, Direction.BOTH)
+                found = state.try_rule(rule.rule.expr, lhs, state.context,
+                                       targets, Direction.BOTH)
                 if isinstance(found, tuple):
                     return list(reversed(collect_path(
                         found[0]))) + collect_path(found[1])
@@ -805,7 +817,9 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
         if not made_progress:
             break
 
-        # 'For now, we need to only apply equality rules and iff rules.  Actually, the LHS isnt a proposition, but rather a value.  Might be time to create types.' += 1
+            # 'For now, we need to only apply equality rules and iff rules.
+            # Actually, the LHS isnt a proposition, but rather a value.
+            # Might be time to create types.' += 1
 
     print('************************  Final context:')
     print('\n'.join([str(v) for v in state.context]))
@@ -848,7 +862,7 @@ def try_rules_brute_force(context, goal, rules, verbose=False):
                     Direction.FORWARD)
                 if isinstance(found, tuple):
                     return list(reversed(collect_path(found[0]))) + \
-                        collect_path(found[1])
+                           collect_path(found[1])
 
                 print('New context: ' + str(state.context))
                 print('context non rules: ' + str(state.context.non_rules()))
