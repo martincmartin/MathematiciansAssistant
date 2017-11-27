@@ -187,76 +187,80 @@ class GoalExprsBruteForce(GoalExprsABC):
         self._exprs_map[expr_and_parent.expr] = expr_and_parent
 
 
-"Refactor to link go general_rules in separate exprs."
 class Exprs(GoalExprsABC):
-    exprs_list: List[ExprAndParent]
+    exprs_non_rules: List[ExprAndParent]
     exprs_rules: List[RulePosition]
-    general_rules: List[RulePosition]
+    parent: Optional['Exprs']
     exprs_map: Dict[Expression, ExprAndParent]
 
-    def __init__(
-            self,
-            exprs: List[Expression],
-            general_rules: List[Expression] = None) -> None:
+    def __init__(self, exprs: List[Expression],
+                 parent: Optional['Exprs'] = None) -> None:
         super().__init__(exprs)
-        if general_rules is None:
-            general_rules = []
+        self.parent = parent
+
         assert all(isinstance(e, Expression) for e in exprs)
-        assert all(isinstance(e, Expression) for e in general_rules)
-        self.exprs_list = [ExprAndParent(e, None)
-                           for e in exprs if not is_rule(e)]
+        self.exprs_non_rules = [ExprAndParent(e, None)
+                                for e in exprs if not is_rule(e)]
         self.exprs_rules = [RulePosition(e, None)
                             for e in exprs if is_rule(e)]
 
-        assert all(is_rule(r) for r in general_rules)
-        self.general_rules = [RulePosition(r, None) for r in general_rules]
-
         self.exprs_map = {expr.expr: expr for expr in
-                          self.exprs_list +
-                          [r.rule for r in self.exprs_rules] +
-                          [r.rule for r in self.general_rules]}
+                          self.exprs_non_rules +
+                          [r.rule for r in self.exprs_rules]}
 
     def add(self, expr_and_parent: ExprAndParent):
         if is_rule(expr_and_parent.expr):
             self.exprs_rules.append(RulePosition(expr_and_parent))
         else:
-            self.exprs_list.append(expr_and_parent)
+            self.exprs_non_rules.append(expr_and_parent)
         self.exprs_map[expr_and_parent.expr] = expr_and_parent
 
     def __contains__(self, expr: Expression) -> bool:
-        return expr in self.exprs_map
+        return expr in self.exprs_map or (self.parent and (expr in self.parent))
 
     def __getitem__(self, key: Expression) -> ExprAndParent:
-        return self.exprs_map[key]
+        if key in self.exprs_map:
+            return self.exprs_map[key]
+        return self.parent[key]
 
+    # Used to iterate over all expressions, to see if a newly generated
+    # expression is an instance of any of them, meaning the proof is done.
     def __iter__(self) -> Iterator[Expression]:
-        # Could also return an iter over the concatenation of the 3 lists.
-        return self.exprs_map.__iter__()
+        return [expr.expr for expr in self.all_exprs()].__iter__()
 
     def __len__(self) -> int:
-        return len(self.exprs_map)
+        return len(self.exprs_map) + (len(self.parent) if self.parent else 0)
 
     def non_rules(self) -> List[ExprAndParent]:
-        return self.exprs_list
+        if self.parent:
+            return self.exprs_non_rules + self.parent.non_rules()
+        else:
+            return self.exprs_non_rules
 
     def relevant_rules(self) -> List[ExprAndParent]:
         return [r.rule for r in self.exprs_rules]
 
     def all_rules(self) -> List[RulePosition]:
-        return self.general_rules + self.exprs_rules
+        if self.parent:
+            return self.parent.all_rules() + self.exprs_rules
+        else:
+            return self.exprs_rules
 
     def equalities(self) -> Sequence[ExprAndParent]:
+        parent_equalities = self.parent.equalities() if self.parent else []
         return [
             rule_pos.rule for rule_pos
-            in self.exprs_rules + self.general_rules
-            if is_equality(rule_pos.rule.expr)]
+            in self.exprs_rules
+            if is_equality(rule_pos.rule.expr)] + parent_equalities
 
     def all_exprs(self) -> List[ExprAndParent]:
         # This won't work in general, because when we add a rule, it will change
         # the index of all elements of exprs_list.  Oi.
-        return self.exprs_list + [r.rule for r in self.all_rules()]
+        return self.non_rules() + [r.rule for r in self.all_rules()]
 
     def __str__(self) -> str:
+        if self.parent:
+            return str(self.exprs_map.values()) + str(self.parent)
         return str(self.exprs_map.values())
 
 
@@ -268,11 +272,16 @@ class ProofState:
     verbose: bool
     context: Exprs
 
-    def __init__(self, context, goal, general_rules,
-                 goal_exprs_class: Type[GoalExprsABC], verbose: bool) -> None:
+    def __init__(self,
+                 context: List[Expression],
+                 goal: Expression,
+                 general_rules: List[Expression],
+                 goal_exprs_class: Type[GoalExprsABC],
+                 verbose: bool) -> None:
         self.verbose = verbose
 
-        self.context = Exprs(context, general_rules)
+        general = Exprs(general_rules)
+        self.context = Exprs(context, general)
 
         self.goals = goal_exprs_class([goal])
 

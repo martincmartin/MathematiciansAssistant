@@ -27,13 +27,12 @@
 # Recreating Coq in Sage would be fun, but seems like a lot of busy work,
 # and wouldn't incorporate any improvements done to Coq.
 
-from Expression import *
 import Parser
 from Deduction import *
 
 
-def ex(input):
-    return Parser.parse(input)
+def ex(st):
+    return Parser.parse(st)
 
 
 # Helpful for testing / debugging.  I should remove this at some point.
@@ -73,7 +72,6 @@ if proof:
         print(expr)
 
 print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
-
 
 
 proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
