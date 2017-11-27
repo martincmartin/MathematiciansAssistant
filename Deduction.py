@@ -137,9 +137,6 @@ class Direction(Enum):
     BOTH = auto()
 
 
-# Maybe derive from abc collections Mapping?  Requires us to provide
-# __getitem__, __iter__ and __len__.  However, the __iter__ is the wrong type.
-# *sigh*.  Actually, we can make __iter__ work.
 class GoalExprsABC(Mapping[Expression, ExprAndParent]):
     # noinspection PyUnusedLocal
     @abstractmethod
@@ -231,13 +228,16 @@ class Exprs(GoalExprsABC):
     def __len__(self) -> int:
         return len(self.exprs_map) + (len(self.parent) if self.parent else 0)
 
-    def non_rules(self) -> List[ExprAndParent]:
+    def immediate_non_rules(self) -> List[ExprAndParent]:
+        return self.exprs_non_rules
+
+    def all_non_rules(self) -> List[ExprAndParent]:
         if self.parent:
-            return self.exprs_non_rules + self.parent.non_rules()
+            return self.exprs_non_rules + self.parent.all_non_rules()
         else:
             return self.exprs_non_rules
 
-    def relevant_rules(self) -> List[ExprAndParent]:
+    def immediate_rules(self) -> List[ExprAndParent]:
         return [r.rule for r in self.exprs_rules]
 
     def all_rules(self) -> List[RulePosition]:
@@ -256,7 +256,8 @@ class Exprs(GoalExprsABC):
     def all_exprs(self) -> List[ExprAndParent]:
         # This won't work in general, because when we add a rule, it will change
         # the index of all elements of exprs_list.  Oi.
-        return self.non_rules() + [r.rule for r in self.all_rules()]
+        return self.exprs_non_rules + self.immediate_rules() + \
+               (self.parent.all_exprs() if self.parent else [])
 
     def __str__(self) -> str:
         if self.parent:
@@ -314,9 +315,9 @@ class ProofState:
 
         if self.verbose:
             print(
-                'try_rule: expr_in ' +
+                'try_rule: ' +
                 str(expr_and_parent_in.expr) +
-                ' becomes ' +
+                ' was transformed into ' +
                 repr(exprs))
 
         added = False
@@ -764,9 +765,9 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
     while True:
         made_progress = False
         # Step 1: apply context_rules to context_list.
-        for cont in state.context.non_rules():
+        for cont in state.context.immediate_non_rules():
             print("*** Forward ***  " + str(cont.expr))
-            for rule in state.context.relevant_rules():
+            for rule in state.context.immediate_rules():
                 print("Rule: " + str(rule.expr))
                 found = state.try_rule(
                     rule.expr,
@@ -781,10 +782,9 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
                     made_progress |= found
 
         # Step 2: simplification / transformations from the goal.
-
-        for goal in cast(Exprs, state.goals).non_rules():
+        for goal in cast(Exprs, state.goals).immediate_non_rules():
             print("*** Backward ***  " + str(goal.expr))
-            for rule in state.context.relevant_rules():
+            for rule in state.context.immediate_rules():
                 found = state.try_rule(
                     rule.expr,
                     goal,
@@ -800,22 +800,28 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
             break
 
     while True:
-        made_progress = False
         # Now, for each goal that's a possibly universally quantified equality,
         # grab the LHS and try to transform it into the RHS.
         for goal in cast(Exprs, state.goals).equalities():
+            made_progress = False
+
             assert has_head(goal.expr, Equal)
             goal_expr = cast(CompositeExpression, goal.expr)
             lhs = ExprAndParent(goal_expr[1], goal.parent)
             targets = {goal_expr[2]: ExprAndParent(goal_expr[2], goal.parent)}
-            print('goal: ' + str(goal.expr) + ', LHS: ' + str(lhs.expr))
-            # I think this is where we need a chaining context thing.  "The set
-            # of things that we know, given our assumptions."
-            # Could be plugged into GoalsExprsABC framework, I think.  The only
-            # methods that try_rule() uses
-            # are "in" and "add()".
+            print('*** goal: ' + str(goal.expr) + ', LHS: ' + str(lhs.expr) +
+                  ', target: ' + str(next(iter(targets))))
+
+            # So, (P + Q) * M is successfully transfomred into
+            # P * M + Q * M.  We need to add that to the Exprs and try again.
+            # We almost need a recursive call, trying the forward and backward
+            # steps from above?  But only on expressions in temp_context.  We
+            # still want to check against all expressions / rules.  But when
+            # looping over non_rules(), we only want that to return the
+            # immediate context's rules, not recurse to parent.
+            temp_context = Exprs([goal_expr[1]], state.context)
             for rule in state.context.all_rules():
-                found = state.try_rule(rule.rule.expr, lhs, state.context,
+                found = state.try_rule(rule.rule.expr, lhs, temp_context,
                                        targets, Direction.BOTH)
                 if isinstance(found, tuple):
                     return list(reversed(collect_path(
@@ -823,12 +829,9 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
                 else:
                     made_progress |= found
 
-        if not made_progress:
-            break
-
-            # 'For now, we need to only apply equality rules and iff rules.
-            # Actually, the LHS isnt a proposition, but rather a value.
-            # Might be time to create types.' += 1
+            if not made_progress:
+                break
+        break
 
     print('************************  Final context:')
     print('\n'.join([str(v) for v in state.context]))
@@ -852,17 +855,17 @@ def try_rules_brute_force(context, goal, rules, verbose=False):
         while rule_index < len(all_rules):
             rule_pos = all_rules[rule_index]
             # rule_pos = rules[rule_index]
-            assert rule_pos.premise <= len(state.context.non_rules())
+            assert rule_pos.premise <= len(state.context.all_non_rules())
             assert rule_pos.target <= len(state.goals.all_exprs())
 
             if verbose:
                 print('********** Rule: ' + str(rule_pos))
 
             # Work forward from the context.
-            if rule_pos.premise < len(state.context.non_rules()):
+            if rule_pos.premise < len(state.context.all_non_rules()):
                 checked_all = False
                 print('context index: ' + str(rule_pos.premise))
-                context_expr = state.context.non_rules()[rule_pos.premise]
+                context_expr = state.context.all_non_rules()[rule_pos.premise]
                 found = state.try_rule(
                     rule_pos.rule.expr,
                     context_expr,
@@ -874,9 +877,10 @@ def try_rules_brute_force(context, goal, rules, verbose=False):
                            collect_path(found[1])
 
                 print('New context: ' + str(state.context))
-                print('context non rules: ' + str(state.context.non_rules()))
+                print('context non rules: ' + str(
+                    state.context.all_non_rules()))
                 print('context relevant rules: ' +
-                      str(state.context.relevant_rules()))
+                      str(state.context.immediate_rules()))
                 rule_pos.premise += 1
 
             # Try working backward from goal.
