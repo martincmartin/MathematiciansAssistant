@@ -71,17 +71,17 @@ if proof:
     for expr in proof:
         print(expr)
 
-print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
-
-
-proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
-                  [defB], general_rules, True)
-
-if not proof:
-    exit(1)
-
-for p in proof:
-    print(p)
+# print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
+#
+#
+# proof = try_rules([defB, ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+#                   general_rules, True)
+#
+# if not proof:
+#     exit(1)
+#
+# for p in proof:
+#     print(p)
 
 
 # So, what we're calling 'rules' here aren't actually rules but axioms,
@@ -92,8 +92,8 @@ rules = [defB, left_dist, right_dist, mult_associative]  # , equals_reflexive]
 
 # Dummit and Foote, problem 0.1.2
 print('\n\n**********  Problem 0.1.2')
-proof = try_rules([ex('P in B'), ex('Q in B')],
-                  ex('P + Q in B'), [defB], general_rules, True)
+proof = try_rules([defB, ex('P in B'), ex('Q in B')],
+                  ex('P + Q in B'), general_rules, True)
 if not proof:
     exit(1)
 
@@ -102,8 +102,8 @@ for p in proof:
 
 # Dummit and Foote, problem 0.1.3
 print('\n\n**********  Problem 0.1.3')
-proof = try_rules([ex('P in B'), ex('Q in B')],
-                  ex('P * Q in B'), [defB], general_rules, True)
+proof = try_rules([defB, ex('P in B'), ex('Q in B')],
+                  ex('P * Q in B'), general_rules, True)
 if not proof:
     exit(1)
 

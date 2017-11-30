@@ -147,7 +147,7 @@ class Direction(Enum):
 class GoalExprsABC(Mapping[Expression, ExprAndParent]):
     # noinspection PyUnusedLocal
     @abstractmethod
-    def __init__(self, goals: Sequence[Expression]) -> None:
+    def __init__(self, goals: Sequence[ExprAndParent]) -> None:
         pass
 
     @abstractmethod
@@ -167,11 +167,12 @@ class GoalExprsBruteForce(GoalExprsABC):
     _exprs_map: MutableMapping[Expression, ExprAndParent]
     _parent: GoalExprsABC
 
-    def __init__(self, exprs: Sequence[Expression], parent : GoalExprsABC) -> None:
+    def __init__(self, exprs: List[ExprAndParent], parent: GoalExprsABC) \
+            -> None:
         super().__init__(exprs)
-        assert all(isinstance(e, Expression) for e in exprs)
+        assert all(isinstance(e, ExprAndParent) for e in exprs)
         self._parent = parent
-        self._exprs_list = [ExprAndParent(e, None) for e in exprs]
+        self._exprs_list = exprs
         self._exprs_map = {
             expr_and_parent.expr: expr_and_parent for expr_and_parent in
             self._exprs_list}
@@ -199,16 +200,15 @@ class Exprs(GoalExprsABC):
     parent: Optional['Exprs']
     exprs_map: Dict[Expression, ExprAndParent]
 
-    def __init__(self, exprs: Sequence[Expression],
+    def __init__(self, exprs: Sequence[ExprAndParent],
                  parent: Optional['Exprs'] = None) -> None:
         super().__init__(exprs)
         self.parent = parent
 
-        assert all(isinstance(e, Expression) for e in exprs)
-        self.exprs_non_rules = [ExprAndParent(e, None)
-                                for e in exprs if not is_rule(e)]
+        assert all(isinstance(e, ExprAndParent) for e in exprs)
+        self.exprs_non_rules = [e for e in exprs if not is_rule(e.expr)]
         self.exprs_rules = [RulePosition(e, None)
-                            for e in exprs if is_rule(e)]
+                            for e in exprs if is_rule(e.expr)]
 
         self.exprs_map = {expr.expr: expr for expr in
                           self.exprs_non_rules +
@@ -224,7 +224,8 @@ class Exprs(GoalExprsABC):
     def __contains__(self, expr: Expression) -> bool:
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
-        return expr in self.exprs_map or (self.parent and expr in self.parent)
+        return (expr in self.exprs_map) or (self.parent and (expr in
+                                                             self.parent))
 
     def __getitem__(self, key: Expression) -> ExprAndParent:
         if key in self.exprs_map:
@@ -287,8 +288,8 @@ class ProofState:
     verbose: bool
 
     def __init__(self,
-                 context: Sequence[Expression],
-                 goal: Sequence[Expression],
+                 context: Sequence[ExprAndParent],
+                 goals: Sequence[ExprAndParent],
                  goal_exprs_class: Type[GoalExprsABC],
                  parent: Optional['ProofState'],
                  verbose: bool) -> None:
@@ -298,7 +299,7 @@ class ProofState:
         # context and goals are actually not used in any method.  So this
         # class is more like a C++ struct than a class.  Yikes!
         self.context = Exprs(context, getattr(parent, 'context', None))
-        self.goals = goal_exprs_class(goal, getattr(parent, 'goals', None))
+        self.goals = goal_exprs_class(goals, getattr(parent, 'goals', None))
 
     def is_instance(self, expr: Expression, rule: Expression):
         """From self, only uses verbose"""
@@ -727,6 +728,7 @@ def collect_path(start: ExprAndParent) -> List[Expression]:
     return ret
 
 
+# Should really be a member of ProofState.  Oh well.
 def try_all_rules(non_rules: List[ExprAndParent],
                   rules: List[ExprAndParent],
                   state: ProofState,
@@ -759,7 +761,10 @@ def try_all_rules(non_rules: List[ExprAndParent],
 # trees to pattern match against, and of course path length and other structural
 # things.
 
-def try_rules(context, goal, context_rules, general_rules, verbose=False):
+def try_rules(context: Sequence[Expression],
+              goal: Expression,
+              general_rules: Sequence[Expression],
+              verbose=False):
     """context and context_rules are disjoint, all in context_rules satisfy
     is_rule(), whereas none of those in context do."""
 
@@ -809,9 +814,16 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
     #   now, always the LHS) and try to transform it into the RHS by working
     #   forward.
 
-    general = ProofState(general_rules, [], Exprs, None, verbose)
+    general = ProofState([ExprAndParent(r, None) for r in general_rules],
+                         [],
+                         Exprs,
+                         None,
+                         verbose)
 
-    state = ProofState(context + context_rules, [goal], Exprs, general,
+    state = ProofState([ExprAndParent(e, None) for e in context],
+                       [ExprAndParent(goal, None)],
+                       Exprs,
+                       general,
                        verbose)
 
     while True:
@@ -839,38 +851,36 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
         if not made_progress:
             break
 
-    while True:
-        # Now, for each goal that's a possibly universally quantified equality,
-        # grab the LHS and try to transform it into the RHS.
-        for goal in cast(Exprs, state.goals).equalities():
-            made_progress = False
+    # Now, for each goal that's a possibly universally quantified equality,
+    # grab the LHS and try to transform it into the RHS.
+    for current_goal in cast(Exprs, state.goals).equalities():
 
-            assert has_head(goal.expr, Equal)
-            goal_expr = cast(CompositeExpression, goal.expr)
-            lhs = ExprAndParent(goal_expr[1], goal.parent)
-            targets = {goal_expr[2]: ExprAndParent(goal_expr[2], goal.parent)}
-            print('*** goal: ' + str(goal.expr) + ', LHS: ' + str(lhs.expr) +
-                  ', target: ' + str(next(iter(targets))))
+        assert has_head(current_goal.expr, Equal)
+        goal_expr = cast(CompositeExpression, current_goal.expr)
+        lhs = ExprAndParent(goal_expr[1], None)
+        rhs = ExprAndParent(goal_expr[2], current_goal)
+        print('*** goal: ' + str(current_goal.expr) + ', LHS: ' +
+              str(lhs.expr) + ', target: ' + str(rhs.expr))
 
-            # So, (P + Q) * M is successfully transformed into
-            # P * M + Q * M.  We need to add that to the Exprs and try again.
-            # We almost need a recursive call, trying the forward and backward
-            # steps from above?  But only on expressions in temp_context.  We
-            # still want to check against all expressions / rules.  But when
-            # looping over non_rules(), we only want that to return the
-            # immediate context's rules, not recurse to parent.
-            temp_state = ProofState([], [goal_expr[1]], Exprs, state, verbose)
-            for rule in state.context.all_rules():
-                found = temp_state.try_rule(rule.rule.expr, lhs,
-                                            Direction.FORWARD)
-                if not isinstance(found, bool):
-                    return found
-                else:
-                    made_progress |= found
+        # So, (P + Q) * M is successfully transformed into
+        # P * M + Q * M.  We need to add that to the Exprs and try again.
+        # We almost need a recursive call, trying the forward and backward
+        # steps from above?  But only on expressions in temp_context.  We
+        # still want to check against all expressions / rules.  But when
+        # looping over non_rules(), we only want that to return the
+        # immediate context's rules, not recurse to parent.
+        temp_state = ProofState([lhs], [rhs], Exprs, state, verbose)
+        while True:
+            found = try_all_rules(temp_state.context.immediate_non_rules(),
+                                  [r.rule for r
+                                   in temp_state.context.all_rules()],
+                                  temp_state,
+                                  Direction.FORWARD)
+            if not isinstance(found, bool):
+                return found
 
-            if not made_progress:
+            if not found:
                 break
-        break
 
     print('************************  Final context:')
     print('\n'.join([str(v) for v in state.context]))
@@ -880,10 +890,17 @@ def try_rules(context, goal, context_rules, general_rules, verbose=False):
     return []
 
 
-def try_rules_brute_force(context, goal, rules, verbose=False):
-    global_state = ProofState(rules, [], GoalExprsBruteForce, None, verbose)
-    state = ProofState(context, [goal], GoalExprsBruteForce,
-                       global_state, verbose)
+def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
+                          rules: Sequence[Expression],
+                          verbose=False):
+    global_state = ProofState([ExprAndParent(r, None) for r in rules], [],
+                              GoalExprsBruteForce, None,
+                              verbose)
+    state = ProofState([ExprAndParent(e, None) for e in context],
+                       [ExprAndParent(goal, None)],
+                       GoalExprsBruteForce,
+                       global_state,
+                       verbose)
 
     for iteration in range(1000):
         checked_all = True
