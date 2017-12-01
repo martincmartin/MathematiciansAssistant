@@ -12,7 +12,7 @@ from Expression import *
 import Parser
 from Deduction import *
 import tokenize
-from pprint import pprint
+# from pprint import pprint
 
 P = var('P')
 Q = var('Q')

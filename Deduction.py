@@ -110,7 +110,7 @@ class ExprAndParent:
     def parent(self) -> 'ExprAndParent':
         return self._parent
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self._expr) + " & parent"
 
 

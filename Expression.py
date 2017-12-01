@@ -22,8 +22,8 @@
 
 from enum import Enum, unique
 from functools import total_ordering
-from pprint import pprint
-from abc import ABCMeta, abstractmethod
+# from pprint import pprint
+from abc import abstractmethod
 from collections import Hashable
 from typing import AbstractSet
 
@@ -317,7 +317,7 @@ or_ = makefn(Or, 'or_')
 not_ = makefn(Not, 'not_')
 
 
-def var(name):
+def var(name: str) -> Variable:
     return Variable(name)
 
 
