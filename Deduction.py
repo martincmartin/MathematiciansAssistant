@@ -392,7 +392,7 @@ class ProofState:
                     None)
 
 
-def match(dummies: AbstractSet[Node], pattern: Expression,
+def match(dummies: AbstractSet[Variable], pattern: Expression,
           target: Expression) -> \
         Optional[Mapping[Expression, Expression]]:
     """Matches "pattern" against "target"s root, i.e. not recursively.
@@ -488,7 +488,7 @@ def try_rule(rule: Expression, target: Expression, direction: Direction):
 
 
 def try_rule_recursive(
-        dummies,
+        dummies: AbstractSet[Variable],
         rule: Expression,
         target: Expression,
         direction: Direction) -> AbstractSet[Expression]:
@@ -574,7 +574,8 @@ def recursive_match_and_substitute(dummies, to_match, replacement, target):
     return result
 
 
-def is_instance(expr: Expression, rule: Expression, dummies=set()):
+def is_instance(expr: Expression, rule: Expression, dummies: Set[Variable] =
+                set()):
     """Determines whether 'expr' an instance of 'rule.'
 
     returns the substitution that makes them match, or None if there's no match.

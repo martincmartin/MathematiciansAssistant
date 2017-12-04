@@ -54,13 +54,13 @@ class Precedence(Enum):
 class Expression(abc.ABC):
     # We should consider getting rid of __mul__ and __add__.  They're used in
     # unit tests of the parser, but would be easy to replace with functions.
-    def __mul__(self, rhs):
+    def __mul__(self, rhs: 'Expression') -> CompositeExpression:
         return CompositeExpression([Multiply(), self, rhs])
 
     # "+" already means "concatenate" for lists.  But concatenating
     # argument lists seems much rarer than constructing expressions
     # using "+", especially in abstract algebra.
-    def __add__(self, rhs):
+    def __add__(self, rhs: 'Expression') -> CompositeExpression:
         return CompositeExpression([Sum(), self, rhs])
 
     # I considered doing the Sage thing and overriding __eq__ and other "rich
@@ -84,12 +84,12 @@ class Expression(abc.ABC):
         return self.repr_and_precedence()[0]
 
     @abstractmethod
-    def free_variables(self, exclude)-> AbstractSet['Variable']:
+    def free_variables(self, exclude: AbstractSet[Variable])-> AbstractSet[Variable]:
         return set()  # pragma: no cover
 
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
-    def get_variables(self, other_dummies):
+    def get_variables(self, other_dummies: AbstractSet[Variable]):
         return self[0].get_variables(self, other_dummies)
 
 
@@ -117,7 +117,7 @@ class CompositeExpression(Expression, tuple):
         """
         return [e.declass() for e in self]
 
-    def free_variables(self, exclude) -> AbstractSet['Variable']:
+    def free_variables(self, exclude: AbstractSet[Variable]) -> AbstractSet[Variable]:
         return {vari for child in self for vari in child.free_variables(
             exclude)}
 
@@ -130,7 +130,7 @@ class Node(Expression):
         return repr(self), Precedence.ATOM
 
     # Currently, our parser can't generate these.
-    def repr_tree(self, args: Iterable[Expression]) -> Tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
         return (repr(self) +
                 '(' +
                 ', '.join([repr(arg) for arg in args]) +
@@ -179,7 +179,7 @@ class Infix(Node):
     _name_with_spaces: str
     _precedence: Precedence
 
-    def __init__(self, name: str, precedence: Precedence):
+    def __init__(self, name: str, precedence: Precedence) -> None:
         assert isinstance(precedence, Precedence)
         self._name = name
         self._name_with_spaces = ' ' + name + ' '
@@ -196,7 +196,7 @@ class Prefix(Node):
     _name_with_space: str
     _precedence: Precedence
 
-    def __init__(self, name: str, precedence: Precedence):
+    def __init__(self, name: str, precedence: Precedence) -> None:
         assert isinstance(precedence, Precedence)
         self._name = name
         self._name_with_space = name + ' '
