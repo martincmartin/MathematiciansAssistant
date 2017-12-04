@@ -8,7 +8,6 @@ import unittest
 # unittest.TestCase.run = lambda self, *args, **kw: unittest.TestCase.debug(self)
 # python3 -m pdb -c continue test_MA.py
 
-from Expression import *
 import Parser
 from Deduction import *
 import tokenize
@@ -112,6 +111,11 @@ class TestParser(unittest.TestCase):
         self.assertEqual(
             ex('((P ==> Q) and not Q) ==> not P'),
             implies(and_(implies(P, Q), not_(Q)), not_(P)))
+
+    def test_list(self):
+        self.assertEqual(
+            ex('[P, P ==> Q, P * R]'),
+            list_(P, implies(P, Q), multiply(P, R)))
 
 
 class TestRepr(unittest.TestCase):

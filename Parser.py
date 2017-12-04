@@ -1,4 +1,5 @@
 from Expression import *
+import Expression
 from tokenize import *
 from typing import *
 import io
@@ -119,9 +120,15 @@ class Parser:
             return e
         if self.accept(NAME):
             return var(self.token.string)
+        if self.accept(LSQB):
+            mylist = [self.expression()]
+            while self.accept(COMMA):
+                mylist.append(self.expression())
+            self.expect(RSQB)
+            return CompositeExpression([Expression.List()] + mylist)
         raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
 
-    def multiplicitive(self) -> Expression:
+    def multiplicative(self) -> Expression:
         e = self.atom()
         while self.accept(STAR, SLASH):
             clz = self.class_map[self.token.exact_type]
@@ -129,10 +136,10 @@ class Parser:
         return e
 
     def additive(self) -> Expression:
-        e = self.multiplicitive()
+        e = self.multiplicative()
         while self.accept(PLUS, MINUS):
             clz = self.class_map[self.token.exact_type]
-            e = CompositeExpression([clz(), e, self.multiplicitive()])
+            e = CompositeExpression([clz(), e, self.multiplicative()])
         return e
 
     def comparison(self) -> Expression:

@@ -24,8 +24,9 @@ from enum import Enum, unique
 from functools import total_ordering
 # from pprint import pprint
 from abc import abstractmethod
+import abc
 from collections import Hashable
-from typing import AbstractSet
+from typing import *
 
 
 @total_ordering
@@ -50,7 +51,7 @@ class Precedence(Enum):
         return self.value < other.value
 
 
-class Expression:
+class Expression(abc.ABC):
     # We should consider getting rid of __mul__ and __add__.  They're used in
     # unit tests of the parser, but would be easy to replace with functions.
     def __mul__(self, rhs):
@@ -75,7 +76,11 @@ class Expression:
     # allows me to have "and," "or" and "not" as infix operators, along with ==>
     # and <==>
 
-    def __repr__(self):
+    @abstractmethod
+    def repr_and_precedence(self) -> Tuple[str, Precedence]:
+        raise NotImplementedError
+
+    def __repr__(self) -> str:
         return self.repr_and_precedence()[0]
 
     @abstractmethod
@@ -94,14 +99,14 @@ class CompositeExpression(Expression, tuple):
     # "Tree"?  "Cons"?  "Cells"?  "List"?  In Mathematica, a list is a
     # composite expression with head List.
 
-    def __init__(self, iter):
-        lst = [it for it in iter]
+    def __init__(self, itera: Iterable[Expression]) -> None:
+        lst = list(itera)
         for it in lst:
             assert isinstance(it, Hashable)
         tuple.__init__(lst)
 
-    # I'm using inheritence instead of composition.  Oh well.
-    def repr_and_precedence(self):
+    # I'm using inheritance instead of composition.  Oh well.
+    def repr_and_precedence(self) -> Tuple[str, Precedence]:
         assert(len(self) > 0)
         return self[0].repr_tree(self[1:])
 
@@ -113,40 +118,41 @@ class CompositeExpression(Expression, tuple):
         return [e.declass() for e in self]
 
     def free_variables(self, exclude) -> AbstractSet['Variable']:
-        return {var for child in self for var in child.free_variables(exclude)}
+        return {vari for child in self for vari in child.free_variables(
+            exclude)}
 
 
 class Node(Expression):
     # Mathematica calls this an Atom.  In Mathematica, Head of a node is
     # its type.  Seems non-orthogonal.
 
-    def repr_and_precedence(self):
-        return (repr(self), Precedence.ATOM)
+    def repr_and_precedence(self) -> Tuple[str, Precedence]:
+        return repr(self), Precedence.ATOM
 
     # Currently, our parser can't generate these.
-    def repr_tree(self, args):
+    def repr_tree(self, args: Iterable[Expression]) -> Tuple[str, Precedence]:
         return (repr(self) +
                 '(' +
                 ', '.join([repr(arg) for arg in args]) +
                 ')', Precedence.FUNCALL)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return isinstance(self, type(other))
 
     def __hash__(self):
         return hash(type(self))
 
-    # Handy utilitiy function used by repr_tree in some children.
-    def wrap(self, child_repr_and_precedence):
+    # Handy utility function used by repr_tree in some children.
+    def wrap(self, child_repr_and_precedence) -> str:
         rep, child_prec = child_repr_and_precedence
-        return rep if child_prec > self.precedence else '(' + rep + ')'
+        return rep if child_prec > self._precedence else '(' + rep + ')'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # If we really are an atom, our derived class needs to implement this.
         # If we're an operator, this shouldn't be called.
         raise NotImplementedError  # pragma: no cover
 
-    def declass(self):  # pragma: no cover
+    def declass(self) -> str:  # pragma: no cover
         return type(self).__name__
 
     # Returns a set().
@@ -169,30 +175,38 @@ def has_head(expr: Expression, clz: type) -> bool:
 # not Add.
 
 class Infix(Node):
-    def __init__(self, name, precedence):
-        assert isinstance(precedence, Precedence)
-        self.name = name
-        self.name_with_spaces = ' ' + name + ' '
-        self.precedence = precedence
+    _name: str
+    _name_with_spaces: str
+    _precedence: Precedence
 
-    def repr_tree(self, args):
-        return (self.name_with_spaces.join(
+    def __init__(self, name: str, precedence: Precedence):
+        assert isinstance(precedence, Precedence)
+        self._name = name
+        self._name_with_spaces = ' ' + name + ' '
+        self._precedence = precedence
+
+    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+        return (self._name_with_spaces.join(
             [self.wrap(arg.repr_and_precedence()) for arg in args]),
-            self.precedence)
+            self._precedence)
 
 
 class Prefix(Node):
-    def __init__(self, name, precedence):
-        assert isinstance(precedence, Precedence)
-        self.name = name
-        self.name_with_space = name + ' '
-        self.precedence = precedence
+    _name: str
+    _name_with_space: str
+    _precedence: Precedence
 
-    def repr_tree(self, args):
+    def __init__(self, name: str, precedence: Precedence):
+        assert isinstance(precedence, Precedence)
+        self._name = name
+        self._name_with_space = name + ' '
+        self._precedence = precedence
+
+    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
         assert len(args) == 1
         return (
-            self.name_with_space + self.wrap(args[0].repr_and_precedence()),
-            self.precedence)
+            self._name_with_space + self.wrap(args[0].repr_and_precedence()),
+            self._precedence)
 
 
 class Multiply(Infix):
@@ -272,6 +286,17 @@ class Exists(Quantifier):
         return r'\exists'
 
 
+class List(Node):
+    def __init__(self):
+        pass
+
+    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+        return ('[' +
+                ', '.join([repr(arg) for arg in args]) +
+                ']', Precedence.FUNCALL)
+
+
+
 class Variable(Node):
     def __init__(self, name):
         self.name = name
@@ -296,7 +321,7 @@ class Variable(Node):
             return {self}
 
 
-def makefn(clz, name=''):
+def makefn(clz: Type[Node], name=''):
     def maker(*args):
         return CompositeExpression([clz()] + list(args))
     maker.__name__ = name if name else clz.__name__.lower()
@@ -315,6 +340,7 @@ element = makefn(Element)
 and_ = makefn(And, 'and_')
 or_ = makefn(Or, 'or_')
 not_ = makefn(Not, 'not_')
+list_ = makefn(List, 'list_')
 
 
 def var(name: str) -> Variable:
@@ -327,3 +353,4 @@ def iff(left, right):
 
 def in_(left, right):
     return element(left, right)
+
