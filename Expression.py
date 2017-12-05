@@ -286,7 +286,7 @@ class Exists(Quantifier):
         return r'\exists'
 
 
-class List(Node):
+class List_(Node):
     def __init__(self):
         pass
 
@@ -340,7 +340,7 @@ element = makefn(Element)
 and_ = makefn(And, 'and_')
 or_ = makefn(Or, 'or_')
 not_ = makefn(Not, 'not_')
-list_ = makefn(List, 'list_')
+list_ = makefn(List_, 'list_')
 
 
 def var(name: str) -> Variable:

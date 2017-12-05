@@ -1,9 +1,9 @@
 from Expression import *
-import Expression
 from tokenize import *
 from typing import *
 import io
 import token
+
 
 # Look!  A yak!  I think I'll shave it...
 
@@ -125,7 +125,7 @@ class Parser:
             while self.accept(COMMA):
                 mylist.append(self.expression())
             self.expect(RSQB)
-            return CompositeExpression([Expression.List()] + mylist)
+            return CompositeExpression([List_()] + mylist)
         raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
 
     def multiplicative(self) -> Expression:

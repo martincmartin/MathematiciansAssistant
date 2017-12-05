@@ -224,8 +224,8 @@ class Exprs(GoalExprsABC):
     def __contains__(self, expr: Expression) -> bool:
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
-        return (expr in self.exprs_map) or (self.parent and (expr in
-                                                             self.parent))
+        return bool(expr in self.exprs_map or
+                    (self.parent and expr in self.parent))
 
     def __getitem__(self, key: Expression) -> ExprAndParent:
         if key in self.exprs_map:
