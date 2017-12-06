@@ -112,10 +112,16 @@ class TestParser(unittest.TestCase):
             ex('((P ==> Q) and not Q) ==> not P'),
             implies(and_(implies(P, Q), not_(Q)), not_(P)))
 
-    def test_list(self):
+    # # Python syntax for lists.
+    # def test_list(self):
+    #     self.assertEqual(
+    #         ex('[P, P ==> Q, P * R]'),
+    #         list_(P, implies(P, Q), multiply(P, R)))
+
+    def test_matrix(self):
         self.assertEqual(
-            ex('[P, P ==> Q, P * R]'),
-            list_(P, implies(P, Q), multiply(P, R)))
+            ex('[P Q; Q R]'),
+            matrixliteral(list_(P, Q), list_(Q, R)))
 
 
 class TestRepr(unittest.TestCase):

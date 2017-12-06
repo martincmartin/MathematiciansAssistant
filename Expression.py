@@ -54,13 +54,13 @@ class Precedence(Enum):
 class Expression(abc.ABC):
     # We should consider getting rid of __mul__ and __add__.  They're used in
     # unit tests of the parser, but would be easy to replace with functions.
-    def __mul__(self, rhs: 'Expression') -> CompositeExpression:
+    def __mul__(self, rhs: 'Expression') -> 'CompositeExpression':
         return CompositeExpression([Multiply(), self, rhs])
 
     # "+" already means "concatenate" for lists.  But concatenating
     # argument lists seems much rarer than constructing expressions
     # using "+", especially in abstract algebra.
-    def __add__(self, rhs: 'Expression') -> CompositeExpression:
+    def __add__(self, rhs: 'Expression') -> 'CompositeExpression':
         return CompositeExpression([Sum(), self, rhs])
 
     # I considered doing the Sage thing and overriding __eq__ and other "rich
@@ -84,12 +84,12 @@ class Expression(abc.ABC):
         return self.repr_and_precedence()[0]
 
     @abstractmethod
-    def free_variables(self, exclude: AbstractSet[Variable])-> AbstractSet[Variable]:
+    def free_variables(self, exclude: AbstractSet['Variable'])-> AbstractSet['Variable']:
         return set()  # pragma: no cover
 
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
-    def get_variables(self, other_dummies: AbstractSet[Variable]):
+    def get_variables(self, other_dummies: AbstractSet['Variable']):
         return self[0].get_variables(self, other_dummies)
 
 
@@ -117,7 +117,7 @@ class CompositeExpression(Expression, tuple):
         """
         return [e.declass() for e in self]
 
-    def free_variables(self, exclude: AbstractSet[Variable]) -> AbstractSet[Variable]:
+    def free_variables(self, exclude: AbstractSet['Variable']) -> AbstractSet['Variable']:
         return {vari for child in self for vari in child.free_variables(
             exclude)}
 
@@ -295,6 +295,15 @@ class List_(Node):
                 ', '.join([repr(arg) for arg in args]) +
                 ']', Precedence.FUNCALL)
 
+class MatrixLiteral(Node):
+    def __init__(self):
+        pass
+
+    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+        return ('[' +
+                ', '.join([repr(arg) for arg in args]) +
+                ']', Precedence.FUNCALL)
+
 
 
 class Variable(Node):
@@ -341,6 +350,7 @@ and_ = makefn(And, 'and_')
 or_ = makefn(Or, 'or_')
 not_ = makefn(Not, 'not_')
 list_ = makefn(List_, 'list_')
+matrixliteral = makefn(MatrixLiteral)
 
 
 def var(name: str) -> Variable:

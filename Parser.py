@@ -120,12 +120,30 @@ class Parser:
             return e
         if self.accept(NAME):
             return var(self.token.string)
+
+        '''
+        This is the Python syntax for list literals: [a, b, c].
         if self.accept(LSQB):
             mylist = [self.expression()]
             while self.accept(COMMA):
                 mylist.append(self.expression())
             self.expect(RSQB)
             return CompositeExpression([List_()] + mylist)
+        '''
+
+        # Matlab syntax for matricies: [a b; c d]
+        if self.accept(LSQB):
+            matrix: List[CompositeExpression] = []
+            row: List[Expression] = []
+            while True:
+                row.append(self.expression())
+                if self.accept(SEMI):
+                    matrix.append(list_(*row))
+                    row = []
+                if self.accept(RSQB):
+                    matrix.append(list_(*row))
+                    return matrixliteral(*matrix)
+
         raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
 
     def multiplicative(self) -> Expression:
