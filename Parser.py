@@ -138,11 +138,11 @@ class Parser:
             while True:
                 row.append(self.expression())
                 if self.accept(SEMI):
-                    matrix.append(list_(*row))
+                    matrix.append(list_literal(*row))
                     row = []
                 if self.accept(RSQB):
-                    matrix.append(list_(*row))
-                    return matrixliteral(*matrix)
+                    matrix.append(list_literal(*row))
+                    return matrix_literal(*matrix)
 
         raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
 

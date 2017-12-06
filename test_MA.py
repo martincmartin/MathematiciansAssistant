@@ -121,7 +121,7 @@ class TestParser(unittest.TestCase):
     def test_matrix(self):
         self.assertEqual(
             ex('[P Q; Q R]'),
-            matrixliteral(list_(P, Q), list_(Q, R)))
+            matrix_literal(list_literal(P, Q), list_literal(Q, R)))
 
 
 class TestRepr(unittest.TestCase):

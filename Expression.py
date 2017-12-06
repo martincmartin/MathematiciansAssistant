@@ -286,7 +286,7 @@ class Exists(Quantifier):
         return r'\exists'
 
 
-class List_(Node):
+class ListLiteral(Node):
     def __init__(self):
         pass
 
@@ -294,6 +294,7 @@ class List_(Node):
         return ('[' +
                 ', '.join([repr(arg) for arg in args]) +
                 ']', Precedence.FUNCALL)
+
 
 class MatrixLiteral(Node):
     def __init__(self):
@@ -349,8 +350,8 @@ element = makefn(Element)
 and_ = makefn(And, 'and_')
 or_ = makefn(Or, 'or_')
 not_ = makefn(Not, 'not_')
-list_ = makefn(List_, 'list_')
-matrixliteral = makefn(MatrixLiteral)
+list_literal = makefn(ListLiteral, 'list_literal')
+matrix_literal = makefn(MatrixLiteral)
 
 
 def var(name: str) -> Variable:
