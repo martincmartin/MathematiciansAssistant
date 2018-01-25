@@ -1,6 +1,15 @@
 # MathematiciansAssistant
 Collaborative theorem discoverer.
 
+Possible fonts for "x + y" logo:
+
+Tex's default font is "Computer Modern."  https://en.wikipedia.org/wiki/Computer_Modern
+Terminal fonts:
+    Glass TTY VT220: http://sensi.org/~svo/glasstty/  http://sensi.org/%7Esvo/glasstty/Glass_TTY_VT220.ttf
+    LCD Solid: http://www.fontspace.com/lcd-solid/lcd-solid
+    
+
+
 [ Is the name a problem?  Will physicists / enginners look at it and think its
 too formal?  I can't think of a better name, and it does help with the
 mathematical part of physics / engineering, not any other parts. ]

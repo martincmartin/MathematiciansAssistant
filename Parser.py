@@ -144,6 +144,9 @@ class Parser:
                     matrix.append(list_literal(*row))
                     return matrix_literal(*matrix)
 
+        if self.accept(NUMBER):
+            return num(int(self.token.string))
+
         raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
 
     def multiplicative(self) -> Expression:

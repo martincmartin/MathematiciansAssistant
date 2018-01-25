@@ -36,6 +36,16 @@ def ex(st):
 
 
 # Helpful for testing / debugging.  I should remove this at some point.
+a = var('a')
+b = var('b')
+c = var('c')
+d = var('d')
+
+p = var('p')
+q = var('q')
+r = var('r')
+s = var('s')
+
 x = var('x')
 y = var('y')
 z = var('z')
@@ -110,6 +120,13 @@ if not proof:
 for p in proof:
     print(p)
 
+# Now that we have matrix literals:
+
+# Dummit and Foote, problem 0.1.1:
+print('\n\n**********  Problem 0.1.1')
+mat_mult = forall((a, b, c, d, p, q, r, s), ex('[a b; c d] * [p q; r s] == [a * p + b * r   a * q + b * s;  c '
+              '* p + d * r   c * q + d * s]'))
+defM = ex('M == [1 1; 0 1]')
 
 # Random Design Notes
 #

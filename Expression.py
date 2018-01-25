@@ -27,6 +27,7 @@ from abc import abstractmethod
 import abc
 from collections import Hashable
 from typing import *
+import numbers
 
 
 @total_ordering
@@ -308,20 +309,21 @@ class MatrixLiteral(Node):
 
 
 class Variable(Node):
+    _name: str
     def __init__(self, name):
-        self.name = name
+        self._name = name
 
     def __repr__(self):
-        return self.name
+        return self._name
 
     def __eq__(self, other):
-        return isinstance(other, Variable) and self.name == other.name
+        return isinstance(other, Variable) and self._name == other._name
 
     def __hash__(self):
-        return hash(self.name)
+        return hash(self._name)
 
     def declass(self):  # pragma: no cover
-        return self.name
+        return self._name
 
     # Returns a set().
     def free_variables(self, exclude) -> AbstractSet['Variable']:
@@ -329,6 +331,25 @@ class Variable(Node):
             return set()
         else:
             return {self}
+
+
+class NumberLiteral(Node):
+    _value: numbers.Number
+
+    def __init__(self, value):
+        self._value = value
+
+    def __repr__(self):
+        return self._value
+
+    def __eq__(self, other):
+        return isinstance(other, NumberLiteral) and self._value == other._value
+
+    def __hash__(self):
+        return hash(self._value)
+
+    def declass(self): # pragma: no cover
+        return self._value
 
 
 def makefn(clz: Type[Node], name=''):
@@ -364,4 +385,7 @@ def iff(left, right):
 
 def in_(left, right):
     return element(left, right)
+
+def num(value: numbers.Number) -> NumberLiteral:
+    return NumberLiteral(value)
 
