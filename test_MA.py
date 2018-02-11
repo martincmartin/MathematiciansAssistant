@@ -123,6 +123,26 @@ class TestParser(unittest.TestCase):
             ex('[P Q; Q R]'),
             matrix_literal(list_literal(P, Q), list_literal(Q, R)))
 
+        self.assertEqual(
+            ex('M == [1 1; 0 1]'),
+            equal(M,
+            matrix_literal(list_literal(num(1), num(1)), list_literal(num(0),
+                                                                      num(1)))))
+
+
+    def test_number_literal(self):
+        self.assertEqual(ex('0'), num(0))
+        self.assertEqual(ex('1'), num(1))
+        self.assertEqual(ex('954'), num(954))
+
+        # Apparently, Python parses "054" as two NUMBERs, 0 and 54.  Strange.
+        # self.assertEqual(ex('054'), num(54))
+
+        # -5 would be parsed as a unary minus applied to num(5), but we don't
+        # have unary minus yet.
+        # self.assertEqual(ex('-5'), minus(num(5)))
+
+
 
 class TestRepr(unittest.TestCase):
     def cannonical(self, expr):

@@ -107,8 +107,8 @@ proof = try_rules([defB, ex('P in B'), ex('Q in B')],
 if not proof:
     exit(1)
 
-for p in proof:
-    print(p)
+for step in proof:
+    print(step)
 
 # Dummit and Foote, problem 0.1.3
 print('\n\n**********  Problem 0.1.3')
@@ -117,16 +117,47 @@ proof = try_rules([defB, ex('P in B'), ex('Q in B')],
 if not proof:
     exit(1)
 
-for p in proof:
-    print(p)
+for step in proof:
+    print(step)
 
 # Now that we have matrix literals:
 
 # Dummit and Foote, problem 0.1.1:
 print('\n\n**********  Problem 0.1.1')
-mat_mult = forall((a, b, c, d, p, q, r, s), ex('[a b; c d] * [p q; r s] == [a * p + b * r   a * q + b * s;  c '
-              '* p + d * r   c * q + d * s]'))
+# "Let A bet the set of 2 x 2 matrices with real number entries."
+# "Determine which of the following elements of A line in B:
+# [1 1; 0 1]
+
+mat_mult = forall((a, b, c, d, p, q, r, s),
+                  ex('[a b; c d] * [p q; r s] == [a * p + b * r   a * q + b * s;'
+                     'c * p + d * r   c * q + d * s]'))
 defM = ex('M == [1 1; 0 1]')
+defX = ex('X == [1 1; 0 1]')
+
+# How do we want to solve this?  We could notice that M == X, so that the
+# condition X in B becomes X * M == M * X, which is just M * M == M * M,
+# which is true by reflexivity.
+
+# Noticing M == X is interesting.  The current code only does it indirectly:
+# after substituting [1 1; 0 1] for X in some expression, it can then
+# substitute M for that.  I don't think it has a way to actually generate X
+# == M and add that to the premises.  So what's needed?
+#
+# Notice that that pair of transforms often happens together and chunk it?
+# Notice that we often use variables to substitute for larger expressions?
+# Notice that we get X * M == M * X, and look for connections between X and M?
+
+# I definitely need ways to represent subgoals, etc. in my output of proofs.
+
+proof = try_rules(context=[defB, defM, defX], goal=ex('X in B'),
+                  general_rules=general_rules + [mat_mult], verbose=True)
+
+if not proof:
+    exit(1)
+
+print("*****  Found solution!  *****")
+for step in proof:
+    print(step)
 
 # Random Design Notes
 #

@@ -84,14 +84,9 @@ class Expression(abc.ABC):
     def __repr__(self) -> str:
         return self.repr_and_precedence()[0]
 
-    @abstractmethod
-    def free_variables(self, exclude: AbstractSet['Variable'])-> AbstractSet['Variable']:
+    def free_variables(self, exclude: AbstractSet['Variable']) -> \
+            AbstractSet['Variable']:
         return set()  # pragma: no cover
-
-    # TODO: Have all missing methods forward to their first argument, so we
-    # don't need the boilerplate here?
-    def get_variables(self, other_dummies: AbstractSet['Variable']):
-        return self[0].get_variables(self, other_dummies)
 
 
 class CompositeExpression(Expression, tuple):
@@ -108,7 +103,7 @@ class CompositeExpression(Expression, tuple):
 
     # I'm using inheritance instead of composition.  Oh well.
     def repr_and_precedence(self) -> Tuple[str, Precedence]:
-        assert(len(self) > 0)
+        assert len(self) > 0
         return self[0].repr_tree(self[1:])
 
     # Call pprint.pprint() on result.
@@ -118,9 +113,17 @@ class CompositeExpression(Expression, tuple):
         """
         return [e.declass() for e in self]
 
-    def free_variables(self, exclude: AbstractSet['Variable']) -> AbstractSet['Variable']:
-        return {vari for child in self for vari in child.free_variables(
-            exclude)}
+    def free_variables(self, exclude: AbstractSet['Variable']) -> \
+            AbstractSet['Variable']:
+        return {variable for child in self for variable in child.free_variables(
+             exclude)}
+
+    # TODO: Have all missing methods forward to their first argument, so we
+    # don't need the boilerplate here?
+    def get_variables(self, other_dummies: AbstractSet['Variable']) -> \
+            AbstractSet['Variable']:
+        '''Only defined for Quantifiers, gets the variables quantified over.'''
+        return self[0].get_variables_tree(self[1:], other_dummies)
 
 
 class Node(Expression):
@@ -148,17 +151,14 @@ class Node(Expression):
         rep, child_prec = child_repr_and_precedence
         return rep if child_prec > self._precedence else '(' + rep + ')'
 
-    def __repr__(self) -> str:
-        # If we really are an atom, our derived class needs to implement this.
-        # If we're an operator, this shouldn't be called.
-        raise NotImplementedError  # pragma: no cover
+    # If we really are an atom, our derived class needs to implement this.
+    # If we're an operator, this shouldn't be called.
+    # Python docs for NotImplementedError say this is how you're supposed to
+    # un-define a method in a subclass that's defined in a superclass.
+    __repr__ = None
 
     def declass(self) -> str:  # pragma: no cover
         return type(self).__name__
-
-    # Returns a set().
-    def free_variables(self, exclude):
-        return set()
 
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
@@ -268,13 +268,13 @@ class Equal(Infix):
 
 
 class Quantifier(Node):
-    def get_variables(self, expr, other_dummies):
-        if isinstance(expr[1], Node):
-            assert expr[1] not in other_dummies
-            return {expr[1]}
+    def get_variables_tree(self, args, other_dummies: AbstractSet['Variable']):
+        if isinstance(args[0], Node):
+            assert args[0] not in other_dummies
+            return {args[0]}
         else:
-            assert other_dummies.isdisjoint(expr[1])
-            return expr[1]
+            assert other_dummies.isdisjoint(args[0])
+            return args[0]
 
 
 class ForAll(Quantifier):
@@ -307,9 +307,9 @@ class MatrixLiteral(Node):
                 ']', Precedence.FUNCALL)
 
 
-
 class Variable(Node):
     _name: str
+
     def __init__(self, name):
         self._name = name
 
@@ -325,8 +325,8 @@ class Variable(Node):
     def declass(self):  # pragma: no cover
         return self._name
 
-    # Returns a set().
-    def free_variables(self, exclude) -> AbstractSet['Variable']:
+    def free_variables(self, exclude: AbstractSet['Variable']) -> \
+                AbstractSet['Variable']:
         if self in exclude:
             return set()
         else:
@@ -340,7 +340,7 @@ class NumberLiteral(Node):
         self._value = value
 
     def __repr__(self):
-        return self._value
+        return repr(self._value)
 
     def __eq__(self, other):
         return isinstance(other, NumberLiteral) and self._value == other._value
@@ -348,7 +348,7 @@ class NumberLiteral(Node):
     def __hash__(self):
         return hash(self._value)
 
-    def declass(self): # pragma: no cover
+    def declass(self):  # pragma: no cover
         return self._value
 
 
@@ -386,6 +386,6 @@ def iff(left, right):
 def in_(left, right):
     return element(left, right)
 
+
 def num(value: numbers.Number) -> NumberLiteral:
     return NumberLiteral(value)
-
