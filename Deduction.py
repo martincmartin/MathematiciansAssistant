@@ -416,9 +416,14 @@ def match(dummies: AbstractSet[Variable], pattern: Expression,
         if pattern in dummies:
             assert pattern not in target.free_variables(dummies)
             # This is a hack until we have types: assume any composite
-            # expression is boolean valued.
-            if isinstance(target, Node) and not target.free_variables(set()):
-                return None
+            # expression is boolean valued.  Also, assume variables don't
+            # match operators.
+            if isinstance(target, Node):
+                # If target is anything other than a variable or nuber literal,
+                # don't match.
+                if not (isinstance(target, NumberLiteral) or
+                        target.free_variables(set())):
+                    return None
             return {pattern: target}
         if pattern == target:
             return {}

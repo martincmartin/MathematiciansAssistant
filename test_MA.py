@@ -4,6 +4,10 @@ import unittest
 #
 # coverage run --branch test_MA.py && coverage report --show-missing
 
+# To run a single test:
+#
+# python3 test_MA.py TestTryRule.test_matrix_mult
+
 # To enter the debugger when a test fails, uncomment this line:
 # unittest.TestCase.run = lambda self, *args, **kw: unittest.TestCase.debug(self)
 # python3 -m pdb -c continue test_MA.py
@@ -19,6 +23,17 @@ R = var('R')
 A = var('A')
 B = var('B')
 M = var('M')
+
+a = var('a')
+b = var('b')
+c = var('c')
+d = var('d')
+
+p = var('p')
+q = var('q')
+r = var('r')
+s = var('s')
+
 
 
 def ex(string):
@@ -216,6 +231,16 @@ class TestMatch(unittest.TestCase):
             match({P, Q}, P + Q, A + B),
             {P: A, Q: B})
 
+    def test_number_literal(self):
+        self.assertEqual(
+            match({a}, a, num(1)),
+            {a: num(1)})
+
+    def test_matrix_literal(self):
+        self.assertEqual(
+            match({a, b, c, d}, ex('[a b; c d]'), ex('[1 2; 3 4]')),
+            {a: num(1), b: num(2), c: num(3), d: num(4)})
+
 
 class TestIsInstance(unittest.TestCase):
     def test_reflexivity_of_equals(self):
@@ -342,6 +367,17 @@ class TestTryRule(unittest.TestCase):
             {ex('(A and A) and B'),
              ex('(A and B) and (A and B)'),
              ex('A and (B and B)')})
+
+    def test_matrix_mult(self):
+        self.assertEqual(
+            try_rule(forall((a, b, c, d, p, q, r, s),
+                             ex('[a b; c d] * [p q; r s] =='
+                                '   [a * p + b * r   a * q + b * s;'
+                                '    c * p + d * r   c * q + d * s]')),
+                     ex('[1 1; 1 1] * [1 1; 0 1]'),
+                     Direction.FORWARD), # Direction is ignored for == I think.
+            {ex('[1 * 1 + 1 * 0   1 * 1 + 1 * 1;'
+                ' 1 * 1 + 1 * 0   1 * 1 + 1 * 1]')})
 
 
 class TestPathLength(unittest.TestCase):

@@ -126,14 +126,30 @@ for step in proof:
 print('\n\n**********  Problem 0.1.1')
 # "Let A bet the set of 2 x 2 matrices with real number entries."
 # "Determine which of the following elements of A line in B:
-# [1 1; 0 1]
+# [1 1; 0 1]   [1 1; 1 1]   [0 0; 0 0]   [1 1; 1 0]   [1 0; 0 1]   [0 1; 1 0]
 
 mat_mult = forall((a, b, c, d, p, q, r, s),
                   ex('[a b; c d] * [p q; r s] =='
                      '   [a * p + b * r   a * q + b * s;'
                      '    c * p + d * r   c * q + d * s]'))
 defM = ex('M == [1 1; 0 1]')
-defX = ex('X == [1 1; 0 1]')
+
+
+def helper(context, goal, general_rules, verbose=True):
+    proof = try_rules(context, goal, general_rules, verbose)
+
+    if not proof:
+        exit(1)
+
+    print("*****  Found solution!  *****")
+    for step in proof:
+        print(step)
+
+
+def helper_0_1_1(defX):
+    print('!!!!! ' + str(defX))
+    helper(context=[defB, defM, defX], goal=ex('X in B'),
+           general_rules=general_rules + [mat_mult], verbose=True)
 
 # How do we want to solve this?  We could notice that M == X, so that the
 # condition X in B becomes X * M == M * X, which is just M * M == M * M,
@@ -150,15 +166,14 @@ defX = ex('X == [1 1; 0 1]')
 
 # I definitely need ways to represent subgoals, etc. in my output of proofs.
 
-proof = try_rules(context=[defB, defM, defX], goal=ex('X in B'),
-                  general_rules=general_rules + [mat_mult], verbose=True)
 
-if not proof:
-    exit(1)
+helper_0_1_1(ex('X == [1 1; 0 1]'))
 
-print("*****  Found solution!  *****")
-for step in proof:
-    print(step)
+helper_0_1_1(ex('X == [1 1; 1 1]'))
+helper_0_1_1(ex('X == [0 0; 0 0]'))
+helper_0_1_1(ex('X == [1 1; 1 0]'))
+helper_0_1_1(ex('X == [1 0; 0 1]'))
+helper_0_1_1(ex('X == [0 1; 1 0]'))
 
 # Random Design Notes
 #
