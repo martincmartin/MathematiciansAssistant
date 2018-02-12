@@ -21,8 +21,8 @@ B = var('B')
 M = var('M')
 
 
-def ex(input):
-    return Parser.parse(input)
+def ex(string):
+    return Parser.parse(string)
 
 
 class TestParser(unittest.TestCase):
@@ -126,9 +126,8 @@ class TestParser(unittest.TestCase):
         self.assertEqual(
             ex('M == [1 1; 0 1]'),
             equal(M,
-            matrix_literal(list_literal(num(1), num(1)), list_literal(num(0),
-                                                                      num(1)))))
-
+                  matrix_literal(list_literal(num(1), num(1)),
+                                 list_literal(num(0), num(1)))))
 
     def test_number_literal(self):
         self.assertEqual(ex('0'), num(0))
@@ -141,7 +140,6 @@ class TestParser(unittest.TestCase):
         # -5 would be parsed as a unary minus applied to num(5), but we don't
         # have unary minus yet.
         # self.assertEqual(ex('-5'), minus(num(5)))
-
 
 
 class TestRepr(unittest.TestCase):
@@ -197,7 +195,7 @@ class TestMatch(unittest.TestCase):
 
     def test_different_len(self):
         self.assertIsNone(
-            match(set(), P + Q, sum(P, Q, A)))
+            match(set(), P + Q, sum_(P, Q, A)))
 
     def test_simple(self):
         self.assertEqual(

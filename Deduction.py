@@ -299,6 +299,8 @@ class ProofState:
         # context and goals are actually not used in any method.  So this
         # class is more like a C++ struct than a class.  Yikes!
         self.context = Exprs(context, getattr(parent, 'context', None))
+        # Only the "brute force" constructor takes a second argument here,
+        # which is I think why PyCharm is complaining.
         self.goals = goal_exprs_class(goals, getattr(parent, 'goals', None))
 
     def is_instance(self, expr: Expression, rule: Expression):

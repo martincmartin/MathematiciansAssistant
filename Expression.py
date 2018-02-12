@@ -130,6 +130,11 @@ class Node(Expression):
     # Mathematica calls this an Atom.  In Mathematica, Head of a node is
     # its type.  Seems non-orthogonal.
 
+    # Only used by Prefix and Infix nodes, but we have a helper method here,
+    # so instead of creating a new class just for "has precedence," we put it
+    #  here.  Could also use a mix-in I suppose.
+    _precedence: Precedence
+
     def repr_and_precedence(self) -> Tuple[str, Precedence]:
         return repr(self), Precedence.ATOM
 
@@ -326,7 +331,7 @@ class Variable(Node):
         return self._name
 
     def free_variables(self, exclude: AbstractSet['Variable']) -> \
-                AbstractSet['Variable']:
+            AbstractSet['Variable']:
         if self in exclude:
             return set()
         else:
@@ -361,7 +366,7 @@ def makefn(clz: Type[Node], name=''):
 
 # You can use these handy functions to construct nodes, or the Parser below.
 multiply = makefn(Multiply)
-sum = makefn(Sum)
+sum_ = makefn(Sum)
 equal = makefn(Equal)
 forall = makefn(ForAll)
 exists = makefn(Exists)

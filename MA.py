@@ -129,8 +129,9 @@ print('\n\n**********  Problem 0.1.1')
 # [1 1; 0 1]
 
 mat_mult = forall((a, b, c, d, p, q, r, s),
-                  ex('[a b; c d] * [p q; r s] == [a * p + b * r   a * q + b * s;'
-                     'c * p + d * r   c * q + d * s]'))
+                  ex('[a b; c d] * [p q; r s] =='
+                     '   [a * p + b * r   a * q + b * s;'
+                     '    c * p + d * r   c * q + d * s]'))
 defM = ex('M == [1 1; 0 1]')
 defX = ex('X == [1 1; 0 1]')
 
