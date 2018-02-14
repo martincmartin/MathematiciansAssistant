@@ -157,20 +157,20 @@ class TestParser(unittest.TestCase):
 
 
 class TestRepr(unittest.TestCase):
-    def cannonical(self, expr: str) -> None:
+    def canonical(self, expr: str) -> None:
         assert isinstance(expr, str)
         self.assertEqual(repr(ex(expr)), expr)
 
     def test_mult_add(self):
-        self.cannonical('P * Q + R')
+        self.canonical('P * Q + R')
 
-        self.cannonical('P * (Q + R)')
+        self.canonical('P * (Q + R)')
 
     def test_not(self):
-        self.cannonical('not P')
+        self.canonical('not P')
 
     def test_not2(self):
-        self.cannonical('not (P and Q)')
+        self.canonical('not (P and Q)')
 
     def test_forall(self):
         self.assertEqual(repr(
@@ -209,10 +209,21 @@ class TestRepr(unittest.TestCase):
 
     def test_matrix_literal_nonstandard(self):
         self.assertEqual(repr(
-                           matrix_literal(list_literal(num(5), a, b),
-                                          sum_(num(3), list_literal(num(0), c,
-                                                                 d)))),
+                           matrix_literal(
+                              list_literal(num(5), a, b),
+                              sum_(num(3), list_literal(num(0), c, d)))),
                          '[[5, a, b], 3 + [0, c, d]]')
+
+    def test_num_canonical(self):
+        self.canonical('23')
+
+    def test_matrix_canonical(self):
+        self.canonical('[5  a  b; 0  c  d]')
+
+    # We don't parse this yet.
+    # def test_matrix_canonical_nonstandard(self):
+    #     self.canonical('[[5, a, b], 3 + [0, c, d]]')
+
 
 
 class TestMatch(unittest.TestCase):
