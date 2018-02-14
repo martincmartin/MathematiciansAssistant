@@ -35,7 +35,6 @@ r = var('r')
 s = var('s')
 
 
-
 def ex(string):
     return Parser.parse(string)
 
@@ -371,11 +370,11 @@ class TestTryRule(unittest.TestCase):
     def test_matrix_mult(self):
         self.assertEqual(
             try_rule(forall((a, b, c, d, p, q, r, s),
-                             ex('[a b; c d] * [p q; r s] =='
+                            ex('[a b; c d] * [p q; r s] =='
                                 '   [a * p + b * r   a * q + b * s;'
                                 '    c * p + d * r   c * q + d * s]')),
                      ex('[1 1; 1 1] * [1 1; 0 1]'),
-                     Direction.FORWARD), # Direction is ignored for == I think.
+                     Direction.FORWARD),  # Direction is ignored for == I think.
             {ex('[1 * 1 + 1 * 0   1 * 1 + 1 * 1;'
                 ' 1 * 1 + 1 * 0   1 * 1 + 1 * 1]')})
 
