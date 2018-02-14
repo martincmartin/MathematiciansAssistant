@@ -147,7 +147,9 @@ class Direction(Enum):
 class GoalExprsABC(Mapping[Expression, ExprAndParent]):
     # noinspection PyUnusedLocal
     @abstractmethod
-    def __init__(self, goals: Sequence[ExprAndParent]) -> None:
+    def __init__(self,
+                 goals: Sequence[ExprAndParent],
+                 parent: Optional['GoalExprsABC']) -> None:
         pass
 
     @abstractmethod
@@ -169,7 +171,7 @@ class GoalExprsBruteForce(GoalExprsABC):
 
     def __init__(self, exprs: List[ExprAndParent], parent: GoalExprsABC) \
             -> None:
-        super().__init__(exprs)
+        super().__init__(exprs, parent)
         assert all(isinstance(e, ExprAndParent) for e in exprs)
         self._parent = parent
         self._exprs_list = exprs
@@ -200,9 +202,10 @@ class Exprs(GoalExprsABC):
     parent: Optional['Exprs']
     exprs_map: Dict[Expression, ExprAndParent]
 
-    def __init__(self, exprs: Sequence[ExprAndParent],
+    def __init__(self,
+                 exprs: Sequence[ExprAndParent],
                  parent: Optional['Exprs'] = None) -> None:
-        super().__init__(exprs)
+        super().__init__(exprs, parent)
         self.parent = parent
 
         assert all(isinstance(e, ExprAndParent) for e in exprs)
