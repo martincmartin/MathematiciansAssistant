@@ -265,7 +265,12 @@ class Exprs(GoalExprsABC):
         else:
             return self.exprs_rules
 
-    def equalities(self) -> Sequence[ExprAndParent]:
+    def equalities(self) -> List[ExprAndParent]:
+        # Returns a List, rather than Sequence or Iterable, because Python
+        # makes dealing with sequences slightly inconvenient: list's "+" only
+        # takes other lists, not sequences.  So, concatenating a sequence
+        # onto a list is done "temp = [ ... ]; temp.extend(seq); return
+        # temp."  I'd rather have the clarity of just "return [ ... ] + seq".
         parent_equalities = self.parent.equalities() if self.parent else []
         return [
             rule_pos.rule for rule_pos
