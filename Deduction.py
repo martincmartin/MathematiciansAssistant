@@ -740,12 +740,15 @@ def collect_path(start: ExprAndParent) -> List[Expression]:
 def try_all_rules(non_rules: List[ExprAndParent],
                   rules: List[ExprAndParent],
                   state: ProofState,
-                  direction: Direction) -> Union[bool, List[Expression]]:
+                  direction: Direction,
+                  verbose: bool) -> Union[bool, List[Expression]]:
     made_progress = False
     for cont in non_rules:
-        print("*** " + str(direction) + " ***  " + str(cont.expr))
+        if verbose:
+            print("*** " + str(direction) + " ***  " + str(cont.expr))
         for rule in rules:
-            print("Rule: " + str(rule.expr))
+            if verbose:
+                print("Rule: " + str(rule.expr))
             found = state.try_rule(
                 rule.expr,
                 cont,
@@ -840,7 +843,8 @@ def try_rules(context: Sequence[Expression],
         found = try_all_rules(state.context.immediate_non_rules(),
                               state.context.immediate_rules(),
                               state,
-                              Direction.FORWARD)
+                              Direction.FORWARD,
+                              verbose)
         if isinstance(found, bool):
             made_progress |= found
         else:
@@ -850,7 +854,8 @@ def try_rules(context: Sequence[Expression],
         found = try_all_rules(cast(Exprs, state.goals).immediate_non_rules(),
                               state.context.immediate_rules(),
                               state,
-                              Direction.BACKWARD)
+                              Direction.BACKWARD,
+                              verbose)
         if isinstance(found, bool):
             made_progress |= found
         else:
@@ -867,8 +872,9 @@ def try_rules(context: Sequence[Expression],
         goal_expr = cast(CompositeExpression, current_goal.expr)
         lhs = ExprAndParent(goal_expr[1], None)
         rhs = ExprAndParent(goal_expr[2], current_goal)
-        print('*** goal: ' + str(current_goal.expr) + ', LHS: ' +
-              str(lhs.expr) + ', target: ' + str(rhs.expr))
+        if verbose:
+            print('*** goal: ' + str(current_goal.expr) + ', LHS: ' +
+                  str(lhs.expr) + ', target: ' + str(rhs.expr))
 
         # So, (P + Q) * M is successfully transformed into
         # P * M + Q * M.  We need to add that to the Exprs and try again.
@@ -883,7 +889,8 @@ def try_rules(context: Sequence[Expression],
                                   [r.rule for r
                                    in temp_state.context.all_rules()],
                                   temp_state,
-                                  Direction.FORWARD)
+                                  Direction.FORWARD,
+                                  verbose)
             if not isinstance(found, bool):
                 return found
 
@@ -896,6 +903,22 @@ def try_rules(context: Sequence[Expression],
     print('\n'.join([str(v) for v in state.goals]))
 
     return []
+
+
+'''
+Need to add:
+  - When applying a rule, don't apply if there are any unbound variables?  ' \
+                             'Would save us transforming "0" into "0 * x".'
+  - Need to be able to do "prove or disprove," i.e. notice when we've proved ' \
+    'conclusion *doesn't* follow from premises.  For current problem, we should
+    add definition of matrix equality, and number equality for that matter, and_
+    determine that X * M != M * X.
+    
+  We never even get to considering [1 1; 0 1] * [1 1; 1 1], because we keep 
+  considering ever more "1 *" and "0 +" variants.  So, we could either hard 
+  code that we should ignore those, or have the system discover that for 
+  itself.
+'''
 
 
 def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
@@ -930,7 +953,7 @@ def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
             # Work forward from the context.
             if rule_pos.premise < len(state.context.all_non_rules()):
                 checked_all = False
-                print('context index: ' + str(rule_pos.premise))
+                # print('context index: ' + str(rule_pos.premise))
                 context_expr = state.context.all_non_rules()[rule_pos.premise]
                 found = state.try_rule(
                     rule_pos.rule.expr,
@@ -939,11 +962,11 @@ def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
                 if not isinstance(found, bool):
                     return found
 
-                print('New context: ' + str(state.context))
-                print('context non rules: ' + str(
-                    state.context.all_non_rules()))
-                print('context relevant rules: ' +
-                      str(state.context.immediate_rules()))
+                # print('New context: ' + str(state.context))
+                # print('context non rules: ' + str(
+                #     state.context.all_non_rules()))
+                # print('context relevant rules: ' +
+                #       str(state.context.immediate_rules()))
                 rule_pos.premise += 1
 
             # Try working backward from goal.

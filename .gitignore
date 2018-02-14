@@ -93,3 +93,6 @@ ENV/
 
 # Sage directory
 sage/
+
+# PyCharm's workspace.xml file
+.idea/workspace.xml

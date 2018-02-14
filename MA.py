@@ -75,10 +75,23 @@ defB = forall(P, ex('P in B <==> P * M == M * P'))
 
 general_rules = [left_dist, right_dist, mult_associative]
 
-proof = try_rules_brute_force([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
-                              [defB] + general_rules, True)
-if proof:
-    for expr in proof:
+
+def helper(context, goal, general_rules, verbose=True):
+    proof = try_rules(context, goal, general_rules, verbose)
+
+    if not proof:
+        exit(1)
+
+    print("*****  Found solution!  *****")
+    for step in proof:
+        print(step)
+
+
+proofbf = try_rules_brute_force([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+                              [defB] + general_rules, False)
+if proofbf:
+    print("*****  Found solution!  *****")
+    for expr in proofbf:
         print(expr)
 
 # print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
@@ -102,23 +115,13 @@ rules = [defB, left_dist, right_dist, mult_associative]  # , equals_reflexive]
 
 # Dummit and Foote, problem 0.1.2
 print('\n\n**********  Problem 0.1.2')
-proof = try_rules([defB, ex('P in B'), ex('Q in B')],
-                  ex('P + Q in B'), general_rules, True)
-if not proof:
-    exit(1)
-
-for step in proof:
-    print(step)
+helper([defB, ex('P in B'), ex('Q in B')],
+                  ex('P + Q in B'), general_rules, False)
 
 # Dummit and Foote, problem 0.1.3
 print('\n\n**********  Problem 0.1.3')
-proof = try_rules([defB, ex('P in B'), ex('Q in B')],
-                  ex('P * Q in B'), general_rules, True)
-if not proof:
-    exit(1)
-
-for step in proof:
-    print(step)
+helper([defB, ex('P in B'), ex('Q in B')],
+                  ex('P * Q in B'), general_rules, False)
 
 # Now that we have matrix literals:
 
@@ -132,24 +135,24 @@ mat_mult = forall((a, b, c, d, p, q, r, s),
                   ex('[a b; c d] * [p q; r s] =='
                      '   [a * p + b * r   a * q + b * s;'
                      '    c * p + d * r   c * q + d * s]'))
+mult_ident_l = forall(x, ex('1 * x == x'))
+mult_ident_r = forall(x, ex('x * 1 == x'))
+mult_zero_l = forall(x, ex('0 * x == 0'))
+mult_zero_r = forall(x, ex('x * 0 == 0'))
+add_ident_l = forall(x, ex('0 + x == x'))
+add_ident_r = forall(x, ex('x + 0 == x'))
+
+ident_and_zero = [mult_ident_l, mult_ident_r, mult_zero_l, mult_zero_r,
+                  add_ident_l, add_ident_r]
+
 defM = ex('M == [1 1; 0 1]')
-
-
-def helper(context, goal, general_rules, verbose=True):
-    proof = try_rules(context, goal, general_rules, verbose)
-
-    if not proof:
-        exit(1)
-
-    print("*****  Found solution!  *****")
-    for step in proof:
-        print(step)
 
 
 def helper_0_1_1(defX):
     print('!!!!! ' + str(defX))
     helper(context=[defB, defM, defX], goal=ex('X in B'),
-           general_rules=general_rules + [mat_mult], verbose=True)
+           general_rules=general_rules + [mat_mult] + ident_and_zero,
+           verbose=True)
 
 # How do we want to solve this?  We could notice that M == X, so that the
 # condition X in B becomes X * M == M * X, which is just M * M == M * M,
@@ -167,7 +170,7 @@ def helper_0_1_1(defX):
 # I definitely need ways to represent subgoals, etc. in my output of proofs.
 
 
-helper_0_1_1(ex('X == [1 1; 0 1]'))
+# helper_0_1_1(ex('X == [1 1; 0 1]'))
 
 helper_0_1_1(ex('X == [1 1; 1 1]'))
 helper_0_1_1(ex('X == [0 0; 0 0]'))
