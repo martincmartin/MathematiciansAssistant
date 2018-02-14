@@ -80,14 +80,14 @@ class Expression(abc.ABC):
 
     @abstractmethod
     def repr_and_precedence(self) -> Tuple[str, Precedence]:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     def __repr__(self) -> str:
         return self.repr_and_precedence()[0]
 
     def free_variables(self, exclude: AbstractSet['Variable']) -> \
             AbstractSet['Variable']:
-        return set()  # pragma: no cover
+        return set()
 
 
 class CompositeExpression(Expression, tuple):
@@ -96,13 +96,9 @@ class CompositeExpression(Expression, tuple):
     # "Tree"?  "Cons"?  "Cells"?  "List"?  In Mathematica, a list is a
     # composite expression with head List.
 
-    def __init__(self, itera: Iterable[Expression]) -> None:
-        for it in itera:
-            assert isinstance(it, Hashable)
-        # Note that tuple's __init__ is a no-op, since the initialization is
-        # actually done in tuple's __new__.  But we include this here to be
-        # pedantic.
-        super().__init__(itera)
+    def __init__(self, iterable: Iterable[Expression]) -> None:
+        super().__init__()
+        assert all(isinstance(it, Hashable) for it in iterable)
 
     # I'm using inheritance instead of composition.  Oh well.
     def repr_and_precedence(self) -> Tuple[str, Precedence]:
@@ -310,9 +306,17 @@ class MatrixLiteral(Node):
         pass
 
     def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
-        return ('[' +
-                ', '.join([repr(arg) for arg in args]) +
-                ']', Precedence.FUNCALL)
+        if all(has_head(arg, ListLiteral) for arg in args):
+            return ('[' +
+                    '; '.join(
+                        '  '.join(repr(cell) for cell in arg[1:])
+                        for arg in args)
+                    + ']',
+                    Precedence.FUNCALL)
+        else:
+            return ('[' +
+                    ', '.join([repr(arg) for arg in args]) +
+                    ']', Precedence.FUNCALL)
 
 
 class Variable(Node):

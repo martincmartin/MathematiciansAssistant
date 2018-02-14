@@ -157,7 +157,7 @@ class TestParser(unittest.TestCase):
 
 
 class TestRepr(unittest.TestCase):
-    def cannonical(self, expr):
+    def cannonical(self, expr: str) -> None:
         assert isinstance(expr, str)
         self.assertEqual(repr(ex(expr)), expr)
 
@@ -175,21 +175,44 @@ class TestRepr(unittest.TestCase):
     def test_forall(self):
         self.assertEqual(repr(
             forall(P, ex('P ==> P'))),
-            '\\forall(P, P ==> P)')
+            r'\forall(P, P ==> P)')
 
         self.assertEqual(repr(
             forall((P, Q), ex('P + Q == Q + P'))),
-            '\\forall((P, Q), P + Q == Q + P)')
+            r'\forall((P, Q), P + Q == Q + P)')
 
     def test_exists(self):
         self.assertEqual(repr(
             exists(A, ex('A + A == A'))),
-            '\\exists(A, A + A == A)')
+            r'\exists(A, A + A == A)')
 
     def test_in(self):
         self.assertEqual(repr(
             in_(P, B)),
-            'P \\in B')
+            r'P \in B')
+
+    def test_number_literal(self):
+        self.assertEqual(repr(
+            num(15)),
+            '15')
+
+    def test_list_literal(self):
+        self.assertEqual(repr(
+            list_literal(num(5), a, b)),
+            '[5, a, b]')
+
+    def test_matrix_literal(self):
+        self.assertEqual(repr(
+                           matrix_literal(list_literal(num(5), a, b),
+                                          list_literal(num(0), c, d))),
+                         '[5  a  b; 0  c  d]')
+
+    def test_matrix_literal_nonstandard(self):
+        self.assertEqual(repr(
+                           matrix_literal(list_literal(num(5), a, b),
+                                          sum_(num(3), list_literal(num(0), c,
+                                                                 d)))),
+                         '[[5, a, b], 3 + [0, c, d]]')
 
 
 class TestMatch(unittest.TestCase):
