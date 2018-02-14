@@ -27,7 +27,8 @@ from abc import abstractmethod
 import abc
 from collections import Hashable
 from typing import *
-import numbers
+
+NumberT = Union[float, int]
 
 
 @total_ordering
@@ -96,10 +97,12 @@ class CompositeExpression(Expression, tuple):
     # composite expression with head List.
 
     def __init__(self, itera: Iterable[Expression]) -> None:
-        lst = list(itera)
-        for it in lst:
+        for it in itera:
             assert isinstance(it, Hashable)
-        tuple.__init__(lst)
+        # Note that tuple's __init__ is a no-op, since the initialization is
+        # actually done in tuple's __new__.  But we include this here to be
+        # pedantic.
+        super().__init__(itera)
 
     # I'm using inheritance instead of composition.  Oh well.
     def repr_and_precedence(self) -> Tuple[str, Precedence]:
@@ -122,7 +125,7 @@ class CompositeExpression(Expression, tuple):
     # don't need the boilerplate here?
     def get_variables(self, other_dummies: AbstractSet['Variable']) -> \
             AbstractSet['Variable']:
-        '''Only defined for Quantifiers, gets the variables quantified over.'''
+        """Only defined for Quantifiers, gets the variables quantified over."""
         return self[0].get_variables_tree(self[1:], other_dummies)
 
 
@@ -339,7 +342,7 @@ class Variable(Node):
 
 
 class NumberLiteral(Node):
-    _value: numbers.Number
+    _value: NumberT
 
     def __init__(self, value):
         self._value = value
@@ -392,5 +395,5 @@ def in_(left, right):
     return element(left, right)
 
 
-def num(value: numbers.Number) -> NumberLiteral:
+def num(value: NumberT) -> NumberLiteral:
     return NumberLiteral(value)

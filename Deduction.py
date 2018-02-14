@@ -757,7 +757,7 @@ def try_all_rules(non_rules: List[ExprAndParent],
                 cont,
                 direction)
             if isinstance(found, bool):
-                made_progress |= found
+                made_progress = made_progress or found
             else:
                 return found
     return made_progress
@@ -849,7 +849,7 @@ def try_rules(context: Sequence[Expression],
                               Direction.FORWARD,
                               verbose)
         if isinstance(found, bool):
-            made_progress |= found
+            made_progress = made_progress or found
         else:
             return found
 
@@ -860,7 +860,7 @@ def try_rules(context: Sequence[Expression],
                               Direction.BACKWARD,
                               verbose)
         if isinstance(found, bool):
-            made_progress |= found
+            made_progress = made_progress or found
         else:
             return found
 
