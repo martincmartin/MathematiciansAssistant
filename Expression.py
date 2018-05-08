@@ -19,13 +19,14 @@
 #   proof though, a tree rather than a list.  More specific is that the proof is
 #   minimal, or near minimal, or doesn't have any obviously uneeded steps, etc.
 
-
 from enum import Enum, unique
 from functools import total_ordering
+
 # from pprint import pprint
-from abc import abstractmethod
+# from abc import abstractmethod
 import abc
-from collections import Hashable
+
+# from collections import Hashable
 from typing import *
 
 NumberT = Union[float, int]
@@ -56,13 +57,13 @@ class Precedence(Enum):
 class Expression(abc.ABC):
     # We should consider getting rid of __mul__ and __add__.  They're used in
     # unit tests of the parser, but would be easy to replace with functions.
-    def __mul__(self, rhs: 'Expression') -> 'CompositeExpression':
+    def __mul__(self, rhs: "Expression") -> "CompositeExpression":
         return CompositeExpression([Multiply(), self, rhs])
 
     # "+" already means "concatenate" for lists.  But concatenating
     # argument lists seems much rarer than constructing expressions
     # using "+", especially in abstract algebra.
-    def __add__(self, rhs: 'Expression') -> 'CompositeExpression':
+    def __add__(self, rhs: "Expression") -> "CompositeExpression":
         return CompositeExpression([Sum(), self, rhs])
 
     # I considered doing the Sage thing and overriding __eq__ and other "rich
@@ -78,16 +79,98 @@ class Expression(abc.ABC):
     # allows me to have "and," "or" and "not" as infix operators, along with ==>
     # and <==>
 
-    @abstractmethod
+    @abc.abstractmethod
     def repr_and_precedence(self) -> Tuple[str, Precedence]:
         raise NotImplementedError  # pragma: no cover
 
     def __repr__(self) -> str:
         return self.repr_and_precedence()[0]
 
-    def free_variables(self, exclude: AbstractSet['Variable']) -> \
-            AbstractSet['Variable']:
+    # Free variables are the ones that are *not* covered by an forall or exists.  They're
+    # value / semantics comes from outside the expression.
+    def free_variables(
+        self, exclude: AbstractSet["Variable"]
+    ) -> AbstractSet["Variable"]:
         return set()
+
+
+class Node(Expression):
+    # Mathematica calls this an Atom.  In Mathematica, Head of a node is
+    # its type.  Seems non-orthogonal.
+
+    # Only used by Prefix and Infix nodes, but we have a helper method here,
+    # so instead of creating a new class just for "has precedence," we put it
+    #  here.  Could also use a mix-in I suppose.
+    _precedence: Precedence
+
+    def repr_and_precedence(self) -> Tuple[str, Precedence]:
+        return repr(self), Precedence.ATOM
+
+    # Currently, our parser can't generate these.
+    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+        return (
+            repr(self) + "(" + ", ".join([repr(arg) for arg in args]) + ")",
+            Precedence.FUNCALL,
+        )
+
+    def get_variables_tree(
+        self, args: Sequence[Expression], other_dummies: AbstractSet["Variable"]
+    ) -> Iterable["Variable"]:
+        raise NotImplementedError  # pragma: no cover
+
+    def free_variables_tree(
+        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
+    ) -> AbstractSet["Variable"]:
+        return {
+            variable for child in args for variable in child.free_variables(exclude)
+        }
+
+    def __eq__(self, other) -> bool:
+        return isinstance(self, type(other))
+
+    def __hash__(self):
+        return hash(type(self))
+
+    # Handy utility function used by repr_tree in some children.
+    def wrap(self, child_repr_and_precedence) -> str:
+        rep, child_prec = child_repr_and_precedence
+        return rep if child_prec > self._precedence else "(" + rep + ")"
+
+    # If we really are an atom, our derived class needs to implement this.
+    # If we're an operator, this shouldn't be called.
+    # Python docs for NotImplementedError say this is how you're supposed to
+    # un-define a method in a subclass that's defined in a superclass.
+    __repr__ = None
+
+    def declass(self) -> str:  # pragma: no cover
+        return type(self).__name__
+
+
+class Variable(Node):
+    _name: str
+
+    def __init__(self, name):
+        self._name = name
+
+    def __repr__(self):
+        return self._name
+
+    def __eq__(self, other):
+        return isinstance(other, Variable) and self._name == other._name
+
+    def __hash__(self):
+        return hash(self._name)
+
+    def declass(self):  # pragma: no cover
+        return self._name
+
+    def free_variables(
+        self, exclude: AbstractSet["Variable"]
+    ) -> AbstractSet["Variable"]:
+        if self in exclude:
+            return set()
+        else:
+            return {self}
 
 
 class CompositeExpression(Expression, tuple):
@@ -112,72 +195,25 @@ class CompositeExpression(Expression, tuple):
         """
         return [e.declass() for e in self]
 
-    def free_variables(self, exclude: AbstractSet['Variable']) -> \
-            AbstractSet['Variable']:
-        return {variable for child in self for variable in child.free_variables(
-             exclude)}
+    def free_variables(self, exclude: AbstractSet[Variable]) -> AbstractSet[Variable]:
+        return self[0].free_variables_tree(self[1:], exclude)
 
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
-    def get_variables(self, other_dummies: AbstractSet['Variable']) -> \
-            AbstractSet['Variable']:
+    def get_variables(self, other_dummies: AbstractSet[Variable]) -> Iterable[Variable]:
         """Only defined for Quantifiers, gets the variables quantified over."""
         return self[0].get_variables_tree(self[1:], other_dummies)
-
-
-class Node(Expression):
-    # Mathematica calls this an Atom.  In Mathematica, Head of a node is
-    # its type.  Seems non-orthogonal.
-
-    # Only used by Prefix and Infix nodes, but we have a helper method here,
-    # so instead of creating a new class just for "has precedence," we put it
-    #  here.  Could also use a mix-in I suppose.
-    _precedence: Precedence
-
-    def repr_and_precedence(self) -> Tuple[str, Precedence]:
-        return repr(self), Precedence.ATOM
-
-    # Currently, our parser can't generate these.
-    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
-        return (repr(self) +
-                '(' +
-                ', '.join([repr(arg) for arg in args]) +
-                ')', Precedence.FUNCALL)
-
-    def __eq__(self, other) -> bool:
-        return isinstance(self, type(other))
-
-    def __hash__(self):
-        return hash(type(self))
-
-    # Handy utility function used by repr_tree in some children.
-    def wrap(self, child_repr_and_precedence) -> str:
-        rep, child_prec = child_repr_and_precedence
-        return rep if child_prec > self._precedence else '(' + rep + ')'
-
-    # If we really are an atom, our derived class needs to implement this.
-    # If we're an operator, this shouldn't be called.
-    # Python docs for NotImplementedError say this is how you're supposed to
-    # un-define a method in a subclass that's defined in a superclass.
-    __repr__ = None
-
-    def declass(self) -> str:  # pragma: no cover
-        return type(self).__name__
 
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
 # least for this sort of mathematical pattern matching code.
 def has_head(expr: Expression, clz: type) -> bool:
-    """
-    :rtype: bool
-    """
-    assert isinstance(expr, Expression)
-    assert isinstance(clz, type)
     return isinstance(expr, CompositeExpression) and isinstance(expr[0], clz)
 
 
 # Name relations after nouns or adjectives, not verbs: Equal, not Equals; Sum,
 # not Add.
+
 
 class Infix(Node):
     _name: str
@@ -187,13 +223,16 @@ class Infix(Node):
     def __init__(self, name: str, precedence: Precedence) -> None:
         assert isinstance(precedence, Precedence)
         self._name = name
-        self._name_with_spaces = ' ' + name + ' '
+        self._name_with_spaces = " " + name + " "
         self._precedence = precedence
 
     def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
-        return (self._name_with_spaces.join(
-            [self.wrap(arg.repr_and_precedence()) for arg in args]),
-            self._precedence)
+        return (
+            self._name_with_spaces.join(
+                [self.wrap(arg.repr_and_precedence()) for arg in args]
+            ),
+            self._precedence,
+        )
 
 
 class Prefix(Node):
@@ -204,145 +243,150 @@ class Prefix(Node):
     def __init__(self, name: str, precedence: Precedence) -> None:
         assert isinstance(precedence, Precedence)
         self._name = name
-        self._name_with_space = name + ' '
+        self._name_with_space = name + " "
         self._precedence = precedence
 
     def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
         assert len(args) == 1
         return (
             self._name_with_space + self.wrap(args[0].repr_and_precedence()),
-            self._precedence)
+            self._precedence,
+        )
 
 
 class Multiply(Infix):
+
     def __init__(self):
-        Infix.__init__(self, '*', Precedence.MULTIPLICATIVE)
+        Infix.__init__(self, "*", Precedence.MULTIPLICATIVE)
 
 
 class Divide(Infix):
+
     def __init__(self):  # pragma: no cover
-        Infix.__init__(self, '/', Precedence.MULTIPLICATIVE)
+        Infix.__init__(self, "/", Precedence.MULTIPLICATIVE)
 
 
 class Sum(Infix):
+
     def __init__(self):
-        Infix.__init__(self, '+', Precedence.ADDITIVE)
+        Infix.__init__(self, "+", Precedence.ADDITIVE)
 
 
 class Difference(Infix):
+
     def __init__(self):  # pragma: no cover
-        Infix.__init__(self, '-', Precedence.ADDITIVE)
+        Infix.__init__(self, "-", Precedence.ADDITIVE)
 
 
 class Element(Infix):
+
     def __init__(self):
-        Infix.__init__(self, r'\in', Precedence.COMPARISON)
+        Infix.__init__(self, r"\in", Precedence.COMPARISON)
 
 
 class Equivalent(Infix):
+
     def __init__(self):
-        Infix.__init__(self, '<==>', Precedence.IMPLIES_EQUIV)
+        Infix.__init__(self, "<==>", Precedence.IMPLIES_EQUIV)
+
+
 #        Infix.__init__(self, r'\iff')
 
 
 class Implies(Infix):
+
     def __init__(self):
-        Infix.__init__(self, '==>', Precedence.IMPLIES_EQUIV)
+        Infix.__init__(self, "==>", Precedence.IMPLIES_EQUIV)
+
+
 #        Infix.__init__(self, r'\implies')
 
 
 class And(Infix):
+
     def __init__(self):
-        Infix.__init__(self, 'and', Precedence.AND_OR)
+        Infix.__init__(self, "and", Precedence.AND_OR)
 
 
 class Or(Infix):
+
     def __init__(self):
-        Infix.__init__(self, 'or', Precedence.AND_OR)
+        Infix.__init__(self, "or", Precedence.AND_OR)
 
 
 class Not(Prefix):
+
     def __init__(self):
-        Prefix.__init__(self, 'not', Precedence.NEGATION)
+        Prefix.__init__(self, "not", Precedence.NEGATION)
 
 
 class Equal(Infix):
+
     def __init__(self):
-        Infix.__init__(self, '==', Precedence.COMPARISON)
+        Infix.__init__(self, "==", Precedence.COMPARISON)
 
 
 class Quantifier(Node):
-    def get_variables_tree(self, args, other_dummies: AbstractSet['Variable']):
+
+    def get_variables_tree(
+        self, args, other_dummies: AbstractSet[Variable]
+    ) -> Iterable[Variable]:
         if isinstance(args[0], Node):
             assert args[0] not in other_dummies
-            return {args[0]}
+            return {cast(Variable, args[0])}
         else:
             assert other_dummies.isdisjoint(args[0])
             return args[0]
 
+    def free_variables_tree(
+        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
+    ) -> AbstractSet["Variable"]:
+        # If variable is already in `exclude`, it just shadows the outer one.  That's confusing, but not wrong.
+        exclude = exclude.union(self.get_variables_tree(args, set()))
+
+        return {
+            variable for child in args[1:] for variable in child.free_variables(exclude)
+        }
+
 
 class ForAll(Quantifier):
+
     def __repr__(self):
-        return r'\forall'
+        return r"\forall"
 
 
 class Exists(Quantifier):
+
     def __repr__(self):
-        return r'\exists'
+        return r"\exists"
 
 
 class ListLiteral(Node):
+
     def __init__(self):
         pass
 
     def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
-        return ('[' +
-                ', '.join([repr(arg) for arg in args]) +
-                ']', Precedence.FUNCALL)
+        return ("[" + ", ".join([repr(arg) for arg in args]) + "]", Precedence.FUNCALL)
 
 
 class MatrixLiteral(Node):
+
     def __init__(self):
         pass
 
     def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
         if all(has_head(arg, ListLiteral) for arg in args):
-            return ('[' +
-                    '; '.join(
-                        '  '.join(repr(cell) for cell in arg[1:])
-                        for arg in args)
-                    + ']',
-                    Precedence.FUNCALL)
+            return (
+                "["
+                + "; ".join("  ".join(repr(cell) for cell in arg[1:]) for arg in args)
+                + "]",
+                Precedence.FUNCALL,
+            )
         else:
-            return ('[' +
-                    ', '.join([repr(arg) for arg in args]) +
-                    ']', Precedence.FUNCALL)
-
-
-class Variable(Node):
-    _name: str
-
-    def __init__(self, name):
-        self._name = name
-
-    def __repr__(self):
-        return self._name
-
-    def __eq__(self, other):
-        return isinstance(other, Variable) and self._name == other._name
-
-    def __hash__(self):
-        return hash(self._name)
-
-    def declass(self):  # pragma: no cover
-        return self._name
-
-    def free_variables(self, exclude: AbstractSet['Variable']) -> \
-            AbstractSet['Variable']:
-        if self in exclude:
-            return set()
-        else:
-            return {self}
+            return (
+                "[" + ", ".join([repr(arg) for arg in args]) + "]", Precedence.FUNCALL
+            )
 
 
 class NumberLiteral(Node):
@@ -364,9 +408,11 @@ class NumberLiteral(Node):
         return self._value
 
 
-def makefn(clz: Type[Node], name=''):
+def makefn(clz: Type[Node], name=""):
+
     def maker(*args):
         return CompositeExpression([clz()] + list(args))
+
     maker.__name__ = name if name else clz.__name__.lower()
     return maker
 
@@ -380,10 +426,10 @@ exists = makefn(Exists)
 implies = makefn(Implies)
 equivalent = makefn(Equivalent)
 element = makefn(Element)
-and_ = makefn(And, 'and_')
-or_ = makefn(Or, 'or_')
-not_ = makefn(Not, 'not_')
-list_literal = makefn(ListLiteral, 'list_literal')
+and_ = makefn(And, "and_")
+or_ = makefn(Or, "or_")
+not_ = makefn(Not, "not_")
+list_literal = makefn(ListLiteral, "list_literal")
 matrix_literal = makefn(MatrixLiteral)
 
 

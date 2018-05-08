@@ -1,0 +1,57 @@
+Tactics:
+
+- "simpl" is simplify.  It doesn't "unfold" defined terms, even when all
+  arguments are constant, if the result is more complicated.  Or something.
+
+- "reflexivity" is "apply the rule Vx x = x backwards."  It seems to do a
+  stronger (and different) simplification than simpl.
+
+- "destruct" is a tactic that destructures, like "match", but creates subgoals for each clause.  Can combine "intros" followed by "destruct" by using "intros" with a pattern.
+
+- "intros" moves a variable from the quantifier in the goal to a _context_ of
+    current assumptions.
+
+- "rewrite" substitues an expression for another that's equal.
+
+- "induction" tactic allows proof by induction.
+
+- "assert" introduces and proves a lemma inside another proof.
+
+Other:
+- "match" is used when defining a function.  It does a destructuring bind on the alternatives of a tagged union.
+
+
+- "bool" is just an enum.  Actual truth or falsehood are type Prop.
+
+
+- To define a new data type:
+   Inductive day : Type :=
+     | monday : day
+     | tuesday : day
+     ...
+     | sunday : day.
+
+    - The new type is "day".  Each | clause introduces a new representation,
+      including its data fields.  That is, a data type is a tagged union, each |
+      clause introduces a new mutually exclusive alternative, and each
+      alternative can have fields.
+    - In the above, you can read ":" as "is a", e.g. "monday is a day."
+
+- To define a (simple) function:
+   Definition next_weekday (d:day) : day :=
+
+- To define a recursive function:
+   Fixpoint evenb (n:nat) : bool :=
+
+     
+- "Compute" takes an expression and evaluates it, returning the result.
+
+- "Check" prints the type of an expression.
+
+- "Theorem", "Example", "Lemma", "Fact" and "Remark" are equivalent.  Each takes
+  a boolean-valued expression which had better evaluate to true.  It gives it a
+  name, and expects a proof, although you can use Admitted. to skip giving a
+  proof.
+
+
+- What are "algebraic data types."

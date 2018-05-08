@@ -1,8 +1,10 @@
 from Expression import *
+from MatchAndSubstitute import *
 # from pprint import pprint
 from typing import *
 # from abc import ABCMeta, abstractmethod
 from enum import Enum, auto
+import heapq
 
 
 # So we proved the first two problems, but using brute force.  Would like to
@@ -134,6 +136,17 @@ class RulePosition:
                str(self.target) + ', rule: ' + str(self.rule.expr) + ']'
 
 
+class RuleAndScore:
+    rule: ExprAndParent
+    score: float = 0
+
+    def __init__(self, rule: ExprAndParent) -> None:
+        self.rule = rule
+
+    def __lt__(self, other: 'RuleAndScore') -> bool:
+        return self.score < other.score
+
+
 class Direction(Enum):
     FORWARD = auto()
     BACKWARD = auto()
@@ -146,17 +159,17 @@ class Direction(Enum):
 
 class GoalExprsABC(Mapping[Expression, ExprAndParent]):
     # noinspection PyUnusedLocal
-    @abstractmethod
+    @abc.abstractmethod
     def __init__(self,
                  goals: Sequence[ExprAndParent],
                  parent: Optional['GoalExprsABC']) -> None:
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def all_exprs(self) -> Sequence[ExprAndParent]:
         return []
 
-    @abstractmethod
+    @abc.abstractmethod
     def add(self, move_and_parent: ExprAndParent) -> None:
         raise KeyError
 
@@ -401,6 +414,55 @@ class ProofState:
                      self.is_instance(move, target) is not None),
                     None)
 
+    def try_rules_simple(self, direction: Direction, verbose: bool):
+        # We have a number of rules and a number of non-rules.
+        # We want to consider which rules to apply, and in which direction.
+        # Simplest thing: give each rule a score of how useful you think
+        # it is.  As you apply it and don't make progress, its score
+        # should go down.  If your idea of "progress" is simply "found goal"
+        # vs "haven't found goal," then this turns into a breadth first
+        # search.  Or, we could do it hexapawn style, where we don't adjust
+        # scores until the end, and when we do, we reinforce everything that
+        # actually made it into the proof, and subtract from those that
+        # didn't.  Although that doesn't help with the initial infinite
+        # regress.
+
+        non_rules = self.context.immediate_non_rules()
+
+        # Would be clearer and more type safe if Python had a separate class
+        # for priority queue, instead of exposing the implementation like
+        # this.  Oh well.
+        rules = heapq.heapify([RuleAndScore(r) for r in
+                               self.context.all_rules()])
+
+        # Need to keep track of which rules we've tried on which expressions, as
+        # well as a score?
+        #
+        # The breadth first search will still be infinite, if we restrict
+        # ourselves to just the current context, if there's no solution.
+        #
+        # So, what do we need to do?  Put all rules in our priority queue,
+        # and simply give the ones in the context a priority boost?
+        #
+        # Could also train it on a lot of simpler problems, like high school
+        # algebra, I suppose.
+        #
+        # I think I should use a heuristic, like some sort of structural
+        # distance between the current expression and goal.
+        #
+        # In this case, LHS: [1  1; 1  1] * M, target: M * [1  1; 1  1].
+        #
+        # I suppose we could do a simple tree matching: the number of
+        # syntactic edits that would take one expression into another.
+        # Although, that would say that X + Y was only one step away from X *
+        #  Y.
+        #
+        # The simplest thing we need is just something that prevents us from
+        # an ever growing tree.  So could just use the number of nodes in the
+        # expression.  And eventually we want the system to develop its own
+        # of course.
+        return False
+
 
 def match(dummies: AbstractSet[Variable], pattern: Expression,
           target: Expression) -> \
@@ -413,7 +475,7 @@ def match(dummies: AbstractSet[Variable], pattern: Expression,
     Returns the substitution, as dict, that makes them match, or None if there's
     no match.  Be careful: both the empty dict (meaning there's a match that
     works with any substitution) and None (they don't match no matter what you
-    substitute) evaluate as false in Python.
+    _substitute) evaluate as false in Python.
     """
 
     assert isinstance(dummies, set)
@@ -498,97 +560,6 @@ def is_rule(expr: Expression) -> bool:
         has_head(expr, Equal)
 
 
-def try_rule(rule: Expression, target: Expression, direction: Direction):
-    return try_rule_recursive(set(), rule, target, direction)
-
-
-def try_rule_recursive(
-        dummies: AbstractSet[Variable],
-        rule: Expression,
-        target: Expression,
-        direction: Direction) -> AbstractSet[Expression]:
-    """Try to apply "rule" to "target".  If rule is Implies, only applies it to
-    "target"'s root.  If rule is Equivalent or Equal, applies it recursively.
-    Returns a possibly empty set() of transformed expressions.
-    """
-    assert isinstance(dummies, set)
-    assert isinstance(direction, Direction)
-    assert is_rule(rule)
-    rule = cast(CompositeExpression, rule)
-
-    if has_head(rule, ForAll):
-        # For "forall" we add the variables to dummies and recurse.
-        # TODO: rename dummy if its in target.free_variables(dummies) or
-        # dummies.
-        return try_rule_recursive(
-            dummies.union(rule.get_variables(dummies)),
-            rule[2],
-            target,
-            direction)
-
-    if has_head(rule, Implies):
-        # For ==>, if we're working backwards from the conclusion, we see if we
-        # can match the RHS, and if so, we return the LHS, with appropriate
-        # substitutions and free variables.  If we're working forwards, we match
-        # the LHS and substitue on the RHS.
-        if direction == Direction.BACKWARD:
-            return match_and_substitute(dummies, rule[2], rule[1], target)
-        elif direction == Direction.FORWARD:
-            return match_and_substitute(dummies, rule[1], rule[2], target)
-
-    if has_head(rule, Equivalent) or has_head(rule, Equal):
-        return recursive_match_and_substitute(
-            dummies, rule[2], rule[1], target).union(
-            recursive_match_and_substitute(
-                dummies, rule[1], rule[2], target))
-
-    return set()
-
-
-def match_and_substitute(dummies, to_match, replacement, target: Expression):
-    """Tries to match the rule "to_match" to the root of "target".
-
-    Returns a (possibly empty) set().
-
-    dummies: the set of variables in replacement that will be set to things in
-    to_match."""
-    assert isinstance(dummies, set)
-
-    subs = match(dummies, to_match, target)
-    if subs is not None:
-        return {substitute(subs, replacement)}
-    return set()
-
-
-def recursive_match_and_substitute(dummies, to_match, replacement, target):
-    """Tries to match the rule "to_match" to all subexpressions of "target".
-
-    Returns a (possibly empty) set().
-
-    dummies: the set of variables in replacement that will be set to things in
-    to_match."""
-    assert isinstance(dummies, set)
-
-    result = set()
-
-    subs = match(dummies, to_match, target)
-    if subs is not None:
-        result.add(substitute(subs, replacement))
-
-    if isinstance(target, Node):
-        return result
-
-    for index, expr in enumerate(target):
-        all_changed = recursive_match_and_substitute(
-            dummies, to_match, replacement, expr)
-        for changed in all_changed:
-            # new_target = target[:index] + (changed,) + target[index+1:]
-            new_target = list(target)
-            new_target[index] = changed
-            result.add(CompositeExpression(new_target))
-    return result
-
-
 def is_instance(expr: Expression, rule: Expression, dummies: Set[Variable] =
                 set()):
     """Determines whether 'expr' an instance of 'rule.'
@@ -608,37 +579,6 @@ def is_instance(expr: Expression, rule: Expression, dummies: Set[Variable] =
             dummies.union(rule.get_variables(dummies)))
     else:
         return match(dummies, rule, expr)
-
-
-def substitute(subs, expr):
-    """Given an expression, and a hash from vars to subexpressions,
-    substitute the
-    subexspressions into the vars."""
-    assert isinstance(subs, dict)
-    # What to do about unsubstituted dummies??  I guess just add a
-    # ForAll at the front?  e.g. if you want to apply P ^ Q ==> Q backwards,
-    # you're introducing a P.
-    if isinstance(expr, Node):
-        return subs.get(expr, expr)
-
-    assert isinstance(expr, CompositeExpression)
-
-    return CompositeExpression([substitute(subs, e) for e in expr])
-
-    # TODO: Handle "or" and "and", e.g. A <==> B should be the same as
-    # A ==> B and B ==> A.
-    #
-    # In fact, A ==> B is the same as not A or B, suggesting that for
-    # boolean expressions, if the taget is "B" and the rule is "A or
-    # B", if the Bs match we can return substituted "not A" as a
-    # possible predecessor.
-    #
-    # In fact, we could define "or" in terms of "==>" like this:
-    #
-    # \forall [P, Q], P or Q <==> (not P) ==> Q.
-    #
-    # I guess this is similar to Horn clauses, which treat ==> and
-    # "and" as the building blocks.
 
 
 # For the heuristic of the path length between two nodes: Need to find
@@ -847,7 +787,7 @@ def try_rules(context: Sequence[Expression],
 
     while True:
         made_progress = False
-        # Step 1: apply context_rules to context_list.
+        # Step 1: work forward from premises to goal.
         found = try_all_rules(state.context.immediate_non_rules(),
                               state.context.immediate_rules(),
                               state,
@@ -872,6 +812,9 @@ def try_rules(context: Sequence[Expression],
         if not made_progress:
             break
 
+    print("Using just the problem specific premises & rules hasn't let us "
+          "prove the goal.  Switching to general purpose premises / rules.")
+
     # Now, for each goal that's a possibly universally quantified equality,
     # grab the LHS and try to transform it into the RHS.
     for current_goal in cast(Exprs, state.goals).equalities():
@@ -893,12 +836,14 @@ def try_rules(context: Sequence[Expression],
         # immediate context's rules, not recurse to parent.
         temp_state = ProofState([lhs], [rhs], Exprs, state, verbose)
         while True:
-            found = try_all_rules(temp_state.context.immediate_non_rules(),
-                                  [r.rule for r
-                                   in temp_state.context.all_rules()],
-                                  temp_state,
-                                  Direction.FORWARD,
-                                  verbose)
+            # We need something smarter than try_all_rules().
+            found = temp_state.try_rules_simple(Direction.FORWARD, verbose)
+            # found = try_all_rules(temp_state.context.immediate_non_rules(),
+            #                       [r.rule for r
+            #                        in temp_state.context.all_rules()],
+            #                       temp_state,
+            #                       Direction.FORWARD,
+            #                       verbose)
             if not isinstance(found, bool):
                 return found
 
@@ -921,11 +866,32 @@ Need to add:
     'conclusion *doesn't* follow from premises.  For current problem, we should
     add definition of matrix equality, and number equality for that matter, and_
     determine that X * M != M * X.
-    
-  We never even get to considering [1 1; 0 1] * [1 1; 1 1], because we keep 
-  considering ever more "1 *" and "0 +" variants.  So, we could either hard 
-  code that we should ignore those, or have the system discover that for 
+
+  We never even get to considering [1 1; 0 1] * [1 1; 1 1], because we keep
+  considering ever more "1 *" and "0 +" variants.  So, we could either hard
+  code that we should ignore those, or have the system discover that for
   itself.
+
+  I could hard code that you only ever apply 1 * x -> x and not the other way
+  around.  But before I don, what's the "right" way to do it?
+
+  I think its related to canonical representation.  e.g. when you have
+  associativity, you have a large equivalence class of representations,
+  and you can pick one to be canonical, e.g. always assocaite to the left.
+  Similarly, you can always simplify by removing 1 * and 0 +.
+
+  Of course, there are times when you want to use a different representation.
+  For example, when completing the square.
+
+  Canonical representations are "generally useful," i.e. useful in many (but
+  not all) situations.  What we'd also like is to recognize that applying the
+  1 * x == x rule backward isn't leading anywhere, so to be less likely to
+  apply it.  Should we have a simple prior, that says how helpful a rule is
+  likely to be?  There's also the idea of a rule that always applies (because
+  the antecedant is just "forall x: x"), vs a rule that only applies in certain
+  situations.  I was getting at that with the general vs problem-specific
+  rules: try the problem specific ones first, since they're probably relevant to
+  the problem at hand.
 '''
 
 

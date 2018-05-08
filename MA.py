@@ -28,155 +28,175 @@
 # and wouldn't incorporate any improvements done to Coq.
 
 import Parser
-from Deduction import *
+# from DeductionOrig import *
+from Expression import Expression, CompositeExpression, var, forall
+
+import DeductionApril2018
+
+import typeguard
+
+from typing import Sequence
 
 
-def ex(st):
+def ex(st: str) -> Expression:
     return Parser.parse(st)
 
 
-# Helpful for testing / debugging.  I should remove this at some point.
-a = var('a')
-b = var('b')
-c = var('c')
-d = var('d')
+def doit() -> None:
+    # Helpful for testing / debugging.  I should remove this at some point.
+    a = var('a')
+    b = var('b')
+    c = var('c')
+    d = var('d')
 
-p = var('p')
-q = var('q')
-r = var('r')
-s = var('s')
+    p = var('p')
+    q = var('q')
+    r = var('r')
+    s = var('s')
 
-x = var('x')
-y = var('y')
-z = var('z')
+    x = var('x')
+    y = var('y')
+    z = var('z')
 
-# Problem 0.1.2 from Dummit and Foote "Abstract Algebra."
-# M = (1  1; 0 1) (zero in lower left)
-A = var('A')
-M = var('M')
-B = var('B')
-P = var('P')
-Q = var('Q')
-R = var('R')
+    # Problem 0.1.2 from Dummit and Foote "Abstract Algebra."
+    # M = (1  1; 0 1) (zero in lower left)
+    A = var('A')
+    M = var('M')
+    B = var('B')
+    P = var('P')
+    Q = var('Q')
+    R = var('R')
 
-# Rules for equals
-equals_reflexive = forall(x, ex('x == x'))
+    # Rules for equals
+    equals_reflexive: CompositeExpression = forall(x, ex('x == x'))
 
-# Multiplication is associative
-mult_associative = forall((P, Q, R), ex('(P * Q) * R == P * (Q * R)'))
+    # Multiplication is associative
+    mult_associative: CompositeExpression = forall(
+        (P, Q, R), ex('(P * Q) * R == P * (Q * R)'))
 
-# Multiplication distributes over addition
-left_dist = forall((P, Q, R), ex('R * (P + Q) == R * P + R * Q'))
-right_dist = forall((P, Q, R), ex('(P + Q) * R == P * R + Q * R'))
+    # Multiplication distributes over addition
+    left_dist: CompositeExpression = forall((P, Q, R),
+                                            ex('R * (P + Q) == R * P + R * Q'))
+    right_dist: CompositeExpression = forall(
+        (P, Q, R), ex('(P + Q) * R == P * R + Q * R'))
 
-# This is the definition of B:
-defB = forall(P, ex('P in B <==> P * M == M * P'))
+    # This is the definition of B:
+    defB: CompositeExpression = forall(P, ex('P in B <==> P * M == M * P'))
+
+    general_rules = [left_dist, right_dist, mult_associative]
+
+    def helper(context: Sequence[Expression],
+               goal: Expression,
+               general_rules: Sequence[Expression],
+               verbose: bool=True) -> None:
+        proof = DeductionApril2018.try_rules(context, goal, general_rules,
+                                             verbose)
+
+        if not proof:
+            exit(1)
+
+        print("*****  Found solution!  *****")
+        for step in proof:
+            print(step)
+
+    # proofbf = try_rules_brute_force([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+    #                               [defB] + general_rules, False)
+    # if proofbf:
+    #     print("*****  Found solution!  *****")
+    #     for expr in proofbf:
+    #         print(expr)
+
+    # print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
+    #
+    #
+    # proof = try_rules([defB, ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+    #                   general_rules, True)
+    #
+    # if not proof:
+    #     exit(1)
+    #
+    # for p in proof:
+    #     print(p)
+
+    # So, what we're calling 'rules' here aren't actually rules but axioms,
+    # i.e. within the context of this problem, they're like premeses.  The only
+    # actual rules we have at the moment are modus ponens and 'equal substitution.'
+
+    rules = [defB, left_dist, right_dist,
+             mult_associative]  # , equals_reflexive]
+
+    if True:
+        # Dummit and Foote, problem 0.1.2
+        print('\n\n**********  Problem 0.1.2')
+        helper([defB, ex('P in B'), ex('Q in B')], ex('P + Q in B'),
+               general_rules, 5)
+
+        # Dummit and Foote, problem 0.1.3
+        print('\n\n**********  Problem 0.1.3')
+        helper([defB, ex('P in B'), ex('Q in B')], ex('P * Q in B'),
+               general_rules, 5)
+
+    # Now that we have matrix literals:
+
+    # Dummit and Foote, problem 0.1.1:
+    print('\n\n**********  Problem 0.1.1')
+    # "Let A bet the set of 2 x 2 matrices with real number entries."
+    # "Determine which of the following elements of A line in B:
+    # [1 1; 0 1]   [1 1; 1 1]   [0 0; 0 0]   [1 1; 1 0]   [1 0; 0 1]   [0 1; 1 0]
+
+    mat_mult = forall((a, b, c, d, p, q, r, s),
+                      ex('[a b; c d] * [p q; r s] =='
+                         '   [a * p + b * r   a * q + b * s;'
+                         '    c * p + d * r   c * q + d * s]'))
+    mult_ident_l = forall(x, ex('1 * x == x'))
+    mult_ident_r = forall(x, ex('x * 1 == x'))
+    mult_zero_l = forall(x, ex('0 * x == 0'))
+    mult_zero_r = forall(x, ex('x * 0 == 0'))
+    add_ident_l = forall(x, ex('0 + x == x'))
+    add_ident_r = forall(x, ex('x + 0 == x'))
+
+    ident_and_zero = [
+        mult_ident_l, mult_ident_r, mult_zero_l, mult_zero_r, add_ident_l,
+        add_ident_r
+    ]
+
+    defM = ex('M == [1 1; 0 1]')
+
+    def helper_0_1_1(defX):
+        print('!!!!! ' + str(defX))
+        helper(
+            context=[defB, defM, defX],
+            goal=ex('X in B'),
+            general_rules=general_rules + [mat_mult] + ident_and_zero,
+            verbose=True)
+
+    # How do we want to solve this?  We could notice that M == X, so that the
+    # condition X in B becomes X * M == M * X, which is just M * M == M * M,
+    # which is true by reflexivity.
+
+    # Noticing M == X is interesting.  The current code only does it indirectly:
+    # after substituting [1 1; 0 1] for X in some expression, it can then
+    # _substitute M for that.  I don't think it has a way to actually generate X
+    # == M and add that to the premises.  So what's needed?
+    #
+    # Notice that that pair of transforms often happens together and chunk it?
+    # Notice that we often use variables to _substitute for larger expressions?
+    # Notice that we get X * M == M * X, and look for connections between X and M?
+
+    # I definitely need ways to represent subgoals, etc. in my output of proofs.
+
+    # helper_0_1_1(ex('X == [1 1; 0 1]'))
+
+    helper_0_1_1(ex('X == [1 1; 1 1]'))
+    helper_0_1_1(ex('X == [0 0; 0 0]'))
+    helper_0_1_1(ex('X == [1 1; 1 0]'))
+    helper_0_1_1(ex('X == [1 0; 0 1]'))
+    helper_0_1_1(ex('X == [0 1; 1 0]'))
 
 
-general_rules = [left_dist, right_dist, mult_associative]
-
-
-def helper(context, goal, general_rules, verbose=True):
-    proof = try_rules(context, goal, general_rules, verbose)
-
-    if not proof:
-        exit(1)
-
-    print("*****  Found solution!  *****")
-    for step in proof:
-        print(step)
-
-
-proofbf = try_rules_brute_force([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
-                              [defB] + general_rules, False)
-if proofbf:
-    print("*****  Found solution!  *****")
-    for expr in proofbf:
-        print(expr)
-
-# print('&&&&&&&&&&&  "Smart" Implementation  &&&&&&&&&&')
-#
-#
-# proof = try_rules([defB, ex('P in B'), ex('Q in B')], ex('P + Q in B'),
-#                   general_rules, True)
-#
-# if not proof:
-#     exit(1)
-#
-# for p in proof:
-#     print(p)
-
-
-# So, what we're calling 'rules' here aren't actually rules but axioms,
-# i.e. within the context of this problem, they're like premeses.  The only
-# actual rules we have at the moment are modus ponens and 'equal substitution.'
-
-rules = [defB, left_dist, right_dist, mult_associative]  # , equals_reflexive]
-
-# Dummit and Foote, problem 0.1.2
-print('\n\n**********  Problem 0.1.2')
-helper([defB, ex('P in B'), ex('Q in B')],
-                  ex('P + Q in B'), general_rules, False)
-
-# Dummit and Foote, problem 0.1.3
-print('\n\n**********  Problem 0.1.3')
-helper([defB, ex('P in B'), ex('Q in B')],
-                  ex('P * Q in B'), general_rules, False)
-
-# Now that we have matrix literals:
-
-# Dummit and Foote, problem 0.1.1:
-print('\n\n**********  Problem 0.1.1')
-# "Let A bet the set of 2 x 2 matrices with real number entries."
-# "Determine which of the following elements of A line in B:
-# [1 1; 0 1]   [1 1; 1 1]   [0 0; 0 0]   [1 1; 1 0]   [1 0; 0 1]   [0 1; 1 0]
-
-mat_mult = forall((a, b, c, d, p, q, r, s),
-                  ex('[a b; c d] * [p q; r s] =='
-                     '   [a * p + b * r   a * q + b * s;'
-                     '    c * p + d * r   c * q + d * s]'))
-mult_ident_l = forall(x, ex('1 * x == x'))
-mult_ident_r = forall(x, ex('x * 1 == x'))
-mult_zero_l = forall(x, ex('0 * x == 0'))
-mult_zero_r = forall(x, ex('x * 0 == 0'))
-add_ident_l = forall(x, ex('0 + x == x'))
-add_ident_r = forall(x, ex('x + 0 == x'))
-
-ident_and_zero = [mult_ident_l, mult_ident_r, mult_zero_l, mult_zero_r,
-                  add_ident_l, add_ident_r]
-
-defM = ex('M == [1 1; 0 1]')
-
-
-def helper_0_1_1(defX):
-    print('!!!!! ' + str(defX))
-    helper(context=[defB, defM, defX], goal=ex('X in B'),
-           general_rules=general_rules + [mat_mult] + ident_and_zero,
-           verbose=True)
-
-# How do we want to solve this?  We could notice that M == X, so that the
-# condition X in B becomes X * M == M * X, which is just M * M == M * M,
-# which is true by reflexivity.
-
-# Noticing M == X is interesting.  The current code only does it indirectly:
-# after substituting [1 1; 0 1] for X in some expression, it can then
-# substitute M for that.  I don't think it has a way to actually generate X
-# == M and add that to the premises.  So what's needed?
-#
-# Notice that that pair of transforms often happens together and chunk it?
-# Notice that we often use variables to substitute for larger expressions?
-# Notice that we get X * M == M * X, and look for connections between X and M?
-
-# I definitely need ways to represent subgoals, etc. in my output of proofs.
-
-
-# helper_0_1_1(ex('X == [1 1; 0 1]'))
-
-helper_0_1_1(ex('X == [1 1; 1 1]'))
-helper_0_1_1(ex('X == [0 0; 0 0]'))
-helper_0_1_1(ex('X == [1 1; 1 0]'))
-helper_0_1_1(ex('X == [1 0; 0 1]'))
-helper_0_1_1(ex('X == [0 1; 1 0]'))
+if __name__ == '__main__':
+    with typeguard.TypeChecker(['MA', 'DeductionHelpers', 'Expression']):
+        doit()
 
 # Random Design Notes
 #
