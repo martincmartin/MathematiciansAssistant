@@ -222,10 +222,10 @@ def _recursive_match_and_substitute(
     target = cast(CompositeExpression, target)
 
     if has_head(target, Quantifier):
-        quant_vars = target.get_variables(set())
+        quant_vars: Iterable[Variable] = target.get_variables(set())
         # If this fails, rename the quant_var.
-        assert quant_vars.isdisjoint(antecedent.free_variables(set()))
-        assert quant_vars.isdisjoint(consequent.free_variables(set()))
+        assert antecedent.free_variables(set()).isdisjoint(quant_vars)
+        assert consequent.free_variables(set()).isdisjoint(quant_vars)
 
     for index, expr in enumerate(target):
         all_changed = _recursive_match_and_substitute(

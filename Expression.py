@@ -90,7 +90,7 @@ class Expression(abc.ABC):
     # value / semantics comes from outside the expression.
     def free_variables(
         self, exclude: AbstractSet["Variable"]
-    ) -> AbstractSet["Variable"]:
+    ) -> Set["Variable"]:
         return set()
 
 
@@ -120,7 +120,7 @@ class Node(Expression):
 
     def free_variables_tree(
         self, args: Sequence[Expression], exclude: Set["Variable"]
-    ) -> AbstractSet["Variable"]:
+    ) -> Set["Variable"]:
         return {
             variable
             for child in args
@@ -168,7 +168,7 @@ class Variable(Node):
 
     def free_variables(
         self, exclude: AbstractSet["Variable"]
-    ) -> AbstractSet["Variable"]:
+    ) -> Set["Variable"]:
         if self in exclude:
             return set()
         else:
@@ -199,7 +199,7 @@ class CompositeExpression(Expression, tuple):
 
     def free_variables(
         self, exclude: AbstractSet[Variable]
-    ) -> AbstractSet[Variable]:
+    ) -> Set[Variable]:
         return self[0].free_variables_tree(self[1:], exclude)
 
     # TODO: Have all missing methods forward to their first argument, so we
@@ -346,7 +346,7 @@ class Quantifier(Node):
 
     def free_variables_tree(
         self, args: Sequence[Expression], exclude: Set["Variable"]
-    ) -> AbstractSet["Variable"]:
+    ) -> Set["Variable"]:
         # If variable is already in `exclude`, it just shadows the outer one.  That's confusing, but not wrong.
         exclude = exclude.union(self.get_variables_tree(args, set()))
 
