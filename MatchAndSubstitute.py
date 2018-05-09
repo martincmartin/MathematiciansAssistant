@@ -8,9 +8,9 @@ from typing import *
 import enum
 
 
-def match(dummies: AbstractSet[Variable], pattern: Expression,
-          target: Expression) -> \
-        Optional[Mapping[Variable, Expression]]:
+def match(
+    dummies: AbstractSet[Variable], pattern: Expression, target: Expression
+) -> Optional[Mapping[Variable, Expression]]:
     """Matches "pattern" against "target"s root, i.e. not recursively.
 
     This is a very simple, structural match.  It doesn't know anything about
@@ -36,9 +36,11 @@ def match(dummies: AbstractSet[Variable], pattern: Expression,
             if isinstance(target, Node):
                 # If target is anything other than a variable or number literal,
                 # don't match.
-                if not (isinstance(target, NumberLiteral)
-                        # or target.free_variables(set())):
-                        or isinstance(target, Variable)):
+                if not (
+                    isinstance(target, NumberLiteral)
+                    # or target.free_variables(set())):
+                    or isinstance(target, Variable)
+                ):
                     return None
             return {pattern: target}
         if pattern == target:
@@ -85,15 +87,14 @@ def is_rule(expr: Expression) -> bool:
     if has_head(expr, ForAll):
         return is_rule(cast(CompositeExpression, expr)[2])
 
-    return has_head(expr, Implies) or \
-        has_head(expr, Equivalent) or \
-        has_head(expr, Equal)
+    return has_head(expr, Implies) or has_head(expr, Equivalent) or has_head(
+        expr, Equal
+    )
 
 
-def is_instance(expr: Expression,
-                rule: Expression,
-                dummies: Set[Variable] = set()) -> \
-        Optional[Mapping[Variable, Expression]]:
+def is_instance(
+    expr: Expression, rule: Expression, dummies: Set[Variable] = set()
+) -> Optional[Mapping[Variable, Expression]]:
     """Determines whether 'expr' is an instance of 'rule.'
 
     returns the substitution that makes them match, or None if there's no match.
@@ -106,14 +107,16 @@ def is_instance(expr: Expression,
 
     if has_head(rule, ForAll):
         rule = cast(CompositeExpression, rule)
-        return is_instance(expr, rule[2],
-                           dummies.union(rule.get_variables(dummies)))
+        return is_instance(
+            expr, rule[2], dummies.union(rule.get_variables(dummies))
+        )
 
     return match(dummies, rule, expr)
 
 
-def try_rule(rule: Expression, target: Expression, direction: Direction) ->  \
-        Set[Expression]:
+def try_rule(
+    rule: Expression, target: Expression, direction: Direction
+) -> Set[Expression]:
     """Apply "rule" to "target", returns any new expressions it generates.
 
     If rule is Implies, only applies it to "target"'s root.  If rule is
@@ -122,12 +125,16 @@ def try_rule(rule: Expression, target: Expression, direction: Direction) ->  \
     Returns a possibly empty set() of transformed expressions.
     """
     if str(rule) == "P * M == M * P":
-        print('OMG')
+        print("OMG")
     return _try_rule_recursive(set(), rule, target, direction)
 
-def _try_rule_recursive(dummies: Set[Variable], rule: Expression,
-                        target: Expression,
-                        direction: Direction) -> Set[Expression]:
+
+def _try_rule_recursive(
+    dummies: Set[Variable],
+    rule: Expression,
+    target: Expression,
+    direction: Direction,
+) -> Set[Expression]:
     """See try_rule()."""
     assert is_rule(rule)
     rule = cast(CompositeExpression, rule)
@@ -137,8 +144,11 @@ def _try_rule_recursive(dummies: Set[Variable], rule: Expression,
         # TODO: rename dummy if its in target.free_variables(dummies) or
         # dummies.
         return _try_rule_recursive(
-            dummies.union(rule.get_variables(dummies)), rule[2], target,
-            direction)
+            dummies.union(rule.get_variables(dummies)),
+            rule[2],
+            target,
+            direction,
+        )
 
     if has_head(rule, Implies):
         # For ==>, if we're working backwards from the conclusion, we see if we
@@ -152,16 +162,20 @@ def _try_rule_recursive(dummies: Set[Variable], rule: Expression,
 
     if has_head(rule, Equivalent) or has_head(rule, Equal):
         return _recursive_match_and_substitute(
-            dummies, rule[2], rule[1], target).union(
-                _recursive_match_and_substitute(dummies, rule[1], rule[2],
-                                                target))
+            dummies, rule[2], rule[1], target
+        ).union(
+            _recursive_match_and_substitute(dummies, rule[1], rule[2], target)
+        )
 
     return set()
 
 
-def _match_and_substitute(dummies: AbstractSet[Variable],
-                          antecedent: Expression, consequent: Expression,
-                          target: Expression) -> Set[Expression]:
+def _match_and_substitute(
+    dummies: AbstractSet[Variable],
+    antecedent: Expression,
+    consequent: Expression,
+    target: Expression,
+) -> Set[Expression]:
     """Apply 'forall(dummies), antecedent ==> consequent' to target.
 
     i.e. if "antecedent" matches "target", then return consequent with
@@ -180,11 +194,12 @@ def _match_and_substitute(dummies: AbstractSet[Variable],
     return set()
 
 
-def _recursive_match_and_substitute(dummies: AbstractSet[Variable],
-                                    antecedent: Expression,
-                                    consequent: Expression,
-                                    target: Expression) -> \
-        Set[Expression]:
+def _recursive_match_and_substitute(
+    dummies: AbstractSet[Variable],
+    antecedent: Expression,
+    consequent: Expression,
+    target: Expression,
+) -> Set[Expression]:
     """In "target", replaces any occurrence of antecedent with consequent.
 
     That is, apply 'forall(dummies) antecedent ==> consequent' to all
@@ -206,10 +221,16 @@ def _recursive_match_and_substitute(dummies: AbstractSet[Variable],
 
     target = cast(CompositeExpression, target)
 
+    if has_head(target, Quantifier):
+        quant_vars = target.get_variables(set())
+        # If this fails, rename the quant_var.
+        assert quant_vars.isdisjoint(antecedent.free_variables(set()))
+        assert quant_vars.isdisjoint(consequent.free_variables(set()))
+
     for index, expr in enumerate(target):
-        Fix me: if target is a quantifier, need to look for quantified-over variable in antecedant and/or consequent.
-        all_changed = _recursive_match_and_substitute(dummies, antecedent,
-                                                      consequent, expr)
+        all_changed = _recursive_match_and_substitute(
+            dummies, antecedent, consequent, expr
+        )
         for changed in all_changed:
             # new_target = target[:index] + (changed,) + target[index+1:]
             new_target = list(target)
@@ -218,8 +239,9 @@ def _recursive_match_and_substitute(dummies: AbstractSet[Variable],
     return result
 
 
-def _substitute(subs: Mapping[Variable, Expression], expr: Expression) -> \
-        Expression:
+def _substitute(
+    subs: Mapping[Variable, Expression], expr: Expression
+) -> Expression:
     """Perform the substitutions given by subs on expr."""
 
     # What to do about unsubstituted dummies??  I guess just add a

@@ -114,15 +114,17 @@ class Node(Expression):
         )
 
     def get_variables_tree(
-        self, args: Sequence[Expression], other_dummies: AbstractSet["Variable"]
+        self, args: Sequence[Expression], other_dummies: Set["Variable"]
     ) -> Iterable["Variable"]:
         raise NotImplementedError  # pragma: no cover
 
     def free_variables_tree(
-        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
+        self, args: Sequence[Expression], exclude: Set["Variable"]
     ) -> AbstractSet["Variable"]:
         return {
-            variable for child in args for variable in child.free_variables(exclude)
+            variable
+            for child in args
+            for variable in child.free_variables(exclude)
         }
 
     def __eq__(self, other) -> bool:
@@ -195,12 +197,16 @@ class CompositeExpression(Expression, tuple):
         """
         return [e.declass() for e in self]
 
-    def free_variables(self, exclude: AbstractSet[Variable]) -> AbstractSet[Variable]:
+    def free_variables(
+        self, exclude: AbstractSet[Variable]
+    ) -> AbstractSet[Variable]:
         return self[0].free_variables_tree(self[1:], exclude)
 
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
-    def get_variables(self, other_dummies: AbstractSet[Variable]) -> Iterable[Variable]:
+    def get_variables(
+        self, other_dummies: AbstractSet[Variable]
+    ) -> Iterable[Variable]:
         """Only defined for Quantifiers, gets the variables quantified over."""
         return self[0].get_variables_tree(self[1:], other_dummies)
 
@@ -329,7 +335,7 @@ class Equal(Infix):
 class Quantifier(Node):
 
     def get_variables_tree(
-        self, args, other_dummies: AbstractSet[Variable]
+        self, args, other_dummies: Set[Variable]
     ) -> Iterable[Variable]:
         if isinstance(args[0], Node):
             assert args[0] not in other_dummies
@@ -339,13 +345,15 @@ class Quantifier(Node):
             return args[0]
 
     def free_variables_tree(
-        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
+        self, args: Sequence[Expression], exclude: Set["Variable"]
     ) -> AbstractSet["Variable"]:
         # If variable is already in `exclude`, it just shadows the outer one.  That's confusing, but not wrong.
         exclude = exclude.union(self.get_variables_tree(args, set()))
 
         return {
-            variable for child in args[1:] for variable in child.free_variables(exclude)
+            variable
+            for child in args[1:]
+            for variable in child.free_variables(exclude)
         }
 
 
@@ -367,7 +375,10 @@ class ListLiteral(Node):
         pass
 
     def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
-        return ("[" + ", ".join([repr(arg) for arg in args]) + "]", Precedence.FUNCALL)
+        return (
+            "[" + ", ".join([repr(arg) for arg in args]) + "]",
+            Precedence.FUNCALL,
+        )
 
 
 class MatrixLiteral(Node):
@@ -379,13 +390,20 @@ class MatrixLiteral(Node):
         if all(has_head(arg, ListLiteral) for arg in args):
             return (
                 "["
-                + "; ".join("  ".join(repr(cell) for cell in arg[1:]) for arg in args)
+                + "; ".join(
+                    "  ".join(
+                        repr(cell)
+                        for cell in cast(CompositeExpression, arg)[1:]
+                    )
+                    for arg in args
+                )
                 + "]",
                 Precedence.FUNCALL,
             )
         else:
             return (
-                "[" + ", ".join([repr(arg) for arg in args]) + "]", Precedence.FUNCALL
+                "[" + ", ".join([repr(arg) for arg in args]) + "]",
+                Precedence.FUNCALL,
             )
 
 

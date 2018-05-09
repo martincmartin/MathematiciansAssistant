@@ -195,7 +195,7 @@ def doit() -> None:
 
 
 if __name__ == '__main__':
-    with typeguard.TypeChecker(['MA', 'DeductionHelpers', 'Expression']):
+    with typeguard.TypeChecker(['MA', 'MatchAndSubstitute', 'DeductionApril2018', 'DeductionHelpers', 'Expression']):
         doit()
 
 # Random Design Notes
