@@ -24,7 +24,9 @@ class ExprAndParent:
     _expr: Expression
     _parent: "ExprAndParent"
 
-    def __init__(self, expr: Expression, parent: Optional["ExprAndParent"]) -> None:
+    def __init__(
+        self, expr: Expression, parent: Optional["ExprAndParent"]
+    ) -> None:
         self._expr = expr
         self._parent = parent
 
@@ -69,7 +71,8 @@ class Exprs(Mapping[Expression, EAndP]):
         self._exprs_non_rules = [e for e in exprs if not is_rule(e.expr)]
         self._exprs_rules = [e for e in exprs if is_rule(e.expr)]
         self._exprs_map = {
-            expr.expr: expr for expr in self._exprs_non_rules + self._exprs_rules
+            expr.expr: expr
+            for expr in self._exprs_non_rules + self._exprs_rules
         }
 
     def add(self, expr_and_parent: EAndP) -> None:
@@ -82,7 +85,9 @@ class Exprs(Mapping[Expression, EAndP]):
     def __contains__(self, expr: Expression) -> bool:
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
-        return bool(expr in self._exprs_map or (self._parent and expr in self._parent))
+        return bool(
+            expr in self._exprs_map or (self._parent and expr in self._parent)
+        )
 
     def __getitem__(self, key: Expression) -> EAndP:
         if key in self._exprs_map:
@@ -223,7 +228,9 @@ class ProofState:
             already_seen = self.goals
             targets = self.context
 
-        exprs = MatchAndSubstitute.try_rule(rule, expr_and_parent_in.expr, direction)
+        exprs = MatchAndSubstitute.try_rule(
+            rule, expr_and_parent_in.expr, direction
+        )
 
         if self.verbosity >= 10 or (self.verbosity > 0 and exprs):
             print(
@@ -235,7 +242,9 @@ class ProofState:
             if move in already_seen:
                 continue
 
-            move_and_parent = expr_and_parent_in.__class__(move, expr_and_parent_in)
+            move_and_parent = expr_and_parent_in.__class__(
+                move, expr_and_parent_in
+            )
 
             # Ideally, in the case of P in B -> P * M == M * P, we'd
             # recognize that the latter is equivalent to the former, and is
@@ -251,7 +260,9 @@ class ProofState:
                         move_and_parent
                     )
                 else:
-                    return list(reversed(collect_path(move_and_parent))) + collect_path(
+                    return list(
+                        reversed(collect_path(move_and_parent))
+                    ) + collect_path(
                         found
                     )
             already_seen.add(move_and_parent)

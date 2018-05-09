@@ -15,24 +15,25 @@ import unittest
 import Parser
 from DeductionHelpers import *
 import tokenize
+
 # from pprint import pprint
 
-P = var('P')
-Q = var('Q')
-R = var('R')
-A = var('A')
-B = var('B')
-M = var('M')
+P = var("P")
+Q = var("Q")
+R = var("R")
+A = var("A")
+B = var("B")
+M = var("M")
 
-a = var('a')
-b = var('b')
-c = var('c')
-d = var('d')
+a = var("a")
+b = var("b")
+c = var("c")
+d = var("d")
 
-p = var('p')
-q = var('q')
-r = var('r')
-s = var('s')
+p = var("p")
+q = var("q")
+r = var("r")
+s = var("s")
 
 
 def ex(string):
@@ -40,91 +41,88 @@ def ex(string):
 
 
 class TestParser(unittest.TestCase):
+
     def test_malformed(self):
         with self.assertRaises(SyntaxError):
-            ex('+')
+            ex("+")
 
     def test_malformed2(self):
         with self.assertRaises(SyntaxError):
-            ex('P Q')
+            ex("P Q")
 
     def test_malformed3(self):
         with self.assertRaises(tokenize.TokenError):
-            ex('( P')
+            ex("( P")
 
     def test_mult(self):
-        self.assertEqual(ex('P*Q'), P * Q)
+        self.assertEqual(ex("P*Q"), P * Q)
 
     def test_mult2(self):
-        self.assertEqual(ex('P*Q*R'), (P * Q) * R)
+        self.assertEqual(ex("P*Q*R"), (P * Q) * R)
 
     def test_mult3(self):
-        self.assertEqual(ex('P*(Q*R)'), P * (Q * R))
+        self.assertEqual(ex("P*(Q*R)"), P * (Q * R))
 
     def test_mult4(self):
-        self.assertEqual(ex('(P*Q)*R'), (P * Q) * R)
+        self.assertEqual(ex("(P*Q)*R"), (P * Q) * R)
 
     def test_add_mult(self):
-        self.assertEqual(ex('P + Q*R'), P + Q * R)
+        self.assertEqual(ex("P + Q*R"), P + Q * R)
 
     def test_add_mult2(self):
-        self.assertEqual(ex('P * Q+R'), P * Q + R)
+        self.assertEqual(ex("P * Q+R"), P * Q + R)
 
     def test_add_mult3(self):
-        self.assertEqual(ex('(P + Q) * R'), (P + Q) * R)
+        self.assertEqual(ex("(P + Q) * R"), (P + Q) * R)
 
     def test_add_mult4(self):
-        self.assertEqual(ex('P * (Q + R)'), P * (Q + R))
+        self.assertEqual(ex("P * (Q + R)"), P * (Q + R))
 
     def test_compare(self):
         self.assertEqual(
-            ex('R * (P + Q) == R * P + R * Q'),
-            equal(R * (P + Q), R * P + R * Q))
+            ex("R * (P + Q) == R * P + R * Q"),
+            equal(R * (P + Q), R * P + R * Q),
+        )
 
     def test_in(self):
-        self.assertEqual(
-            ex('P + Q in B'),
-            in_(P + Q, B))
+        self.assertEqual(ex("P + Q in B"), in_(P + Q, B))
 
     def test_not(self):
-        self.assertEqual(
-            ex('not P == Q'),
-            not_(equal(P, Q)))
+        self.assertEqual(ex("not P == Q"), not_(equal(P, Q)))
 
     def test_not2(self):
-        self.assertEqual(
-            ex('not P and Q'),
-            and_(not_(P), Q))
+        self.assertEqual(ex("not P and Q"), and_(not_(P), Q))
 
     def test_not3(self):
-        self.assertEqual(
-            ex('P or not Q'),
-            or_(P, not_(Q)))
+        self.assertEqual(ex("P or not Q"), or_(P, not_(Q)))
 
     def test_implies(self):
         self.assertEqual(
-            ex('not P or Q ==> A and B'),
-            implies(or_(not_(P), Q), and_(A, B)))
+            ex("not P or Q ==> A and B"), implies(or_(not_(P), Q), and_(A, B))
+        )
 
     def test_iff(self):
         self.assertEqual(
-            ex('not P or Q <==> (P ==> Q)'),
-            iff(or_(not_(P), Q), implies(P, Q)))
+            ex("not P or Q <==> (P ==> Q)"), iff(or_(not_(P), Q), implies(P, Q))
+        )
 
     def test_implies_precedence(self):
         self.assertEqual(
-            ex('P ==> Q and not Q ==> not P'),
-            implies(implies(P, and_(Q, not_(Q))), not_(P)))
+            ex("P ==> Q and not Q ==> not P"),
+            implies(implies(P, and_(Q, not_(Q))), not_(P)),
+        )
 
     def test_implies_precedence2(self):
         self.assertEqual(
-            ex('(P ==> Q) and not Q ==> not P'),
-            implies(and_(implies(P, Q), not_(Q)), not_(P)))
+            ex("(P ==> Q) and not Q ==> not P"),
+            implies(and_(implies(P, Q), not_(Q)), not_(P)),
+        )
 
     def test_implies_precedence3(self):
         self.assertEqual(
-            ex('((P ==> Q) and not Q) ==> not P'),
-            implies(and_(implies(P, Q), not_(Q)), not_(P)))
+            ex("((P ==> Q) and not Q) ==> not P"),
+            implies(and_(implies(P, Q), not_(Q)), not_(P)),
+        )
 
     # # Python syntax for lists.
     # def test_list(self):
@@ -134,19 +132,24 @@ class TestParser(unittest.TestCase):
 
     def test_matrix(self):
         self.assertEqual(
-            ex('[P Q; Q R]'),
-            matrix_literal(list_literal(P, Q), list_literal(Q, R)))
+            ex("[P Q; Q R]"),
+            matrix_literal(list_literal(P, Q), list_literal(Q, R)),
+        )
 
         self.assertEqual(
-            ex('M == [1 1; 0 1]'),
-            equal(M,
-                  matrix_literal(list_literal(num(1), num(1)),
-                                 list_literal(num(0), num(1)))))
+            ex("M == [1 1; 0 1]"),
+            equal(
+                M,
+                matrix_literal(
+                    list_literal(num(1), num(1)), list_literal(num(0), num(1))
+                ),
+            ),
+        )
 
     def test_number_literal(self):
-        self.assertEqual(ex('0'), num(0))
-        self.assertEqual(ex('1'), num(1))
-        self.assertEqual(ex('954'), num(954))
+        self.assertEqual(ex("0"), num(0))
+        self.assertEqual(ex("1"), num(1))
+        self.assertEqual(ex("954"), num(954))
 
         # Apparently, Python parses "054" as two NUMBERs, 0 and 54.  Strange.
         # self.assertEqual(ex('054'), num(54))
@@ -163,13 +166,16 @@ class TestPathLength(unittest.TestCase):
         for i in range(len(actual) - 1):
             self.assertLessEqual(actual[i][0], actual[i + 1][0])
 
-        self.assertEqual(actual.sort(key=lambda x: (x[0], id(x))),
-                         expected.sort(key=lambda x: (x[0], id(x))))
+        self.assertEqual(
+            actual.sort(key=lambda x: (x[0], id(x))),
+            expected.sort(key=lambda x: (x[0], id(x))),
+        )
 
     def test_simple(self):
         self.assert_path_length_result(
-            path_length(P, M, ex('(P + Q) * M == M * (P + Q)')),
-            [(3, P, M), (3, P, M), (5, P, M), (5, P, M)])
+            path_length(P, M, ex("(P + Q) * M == M * (P + Q)")),
+            [(3, P, M), (3, P, M), (5, P, M), (5, P, M)],
+        )
 
         #         ===
         #     *         *
@@ -178,9 +184,10 @@ class TestPathLength(unittest.TestCase):
 
     def test_simple2(self):
         self.assert_path_length_result(
-            path_length(M, P, ex('(P + Q) * M == M * (P + Q)')),
-            [(3, M, P), (3, M, P), (5, M, P), (5, M, P)])
+            path_length(M, P, ex("(P + Q) * M == M * (P + Q)")),
+            [(3, M, P), (3, M, P), (5, M, P), (5, M, P)],
+        )
 
 
-if __name__ == '__main__':  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     unittest.main()

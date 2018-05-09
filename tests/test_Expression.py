@@ -59,7 +59,9 @@ class TestRepr(unittest.TestCase):
         )
 
     def test_exists(self):
-        self.assertEqual(repr(exists(A, ex("A + A == A"))), r"\exists(A, A + A == A)")
+        self.assertEqual(
+            repr(exists(A, ex("A + A == A"))), r"\exists(A, A + A == A)"
+        )
 
     def test_in(self):
         self.assertEqual(repr(in_(P, B)), r"P \in B")
@@ -73,7 +75,9 @@ class TestRepr(unittest.TestCase):
     def test_matrix_literal(self):
         self.assertEqual(
             repr(
-                matrix_literal(list_literal(num(5), a, b), list_literal(num(0), c, d))
+                matrix_literal(
+                    list_literal(num(5), a, b), list_literal(num(0), c, d)
+                )
             ),
             "[5  a  b; 0  c  d]",
         )
@@ -82,7 +86,8 @@ class TestRepr(unittest.TestCase):
         self.assertEqual(
             repr(
                 matrix_literal(
-                    list_literal(num(5), a, b), sum_(num(3), list_literal(num(0), c, d))
+                    list_literal(num(5), a, b),
+                    sum_(num(3), list_literal(num(0), c, d)),
                 )
             ),
             "[[5, a, b], 3 + [0, c, d]]",
@@ -105,7 +110,9 @@ class TestFreeVars(unittest.TestCase):
         self.assertEqual(ex("a + b").free_variables(set()), {a, b})
 
     def test_quantifier(self) -> None:
-        self.assertEqual(forall(P, ex("P or Q ==> Q")).free_variables(set()), {Q})
+        self.assertEqual(
+            forall(P, ex("P or Q ==> Q")).free_variables(set()), {Q}
+        )
 
     def test_shadow_free(self) -> None:
         self.assertEqual(
@@ -114,7 +121,9 @@ class TestFreeVars(unittest.TestCase):
 
     def test_shadow_bound(self) -> None:
         self.assertEqual(
-            forall(P, implies(P, forall(P, ex("P or not P")))).free_variables(set()),
+            forall(P, implies(P, forall(P, ex("P or not P")))).free_variables(
+                set()
+            ),
             set(),
         )
 

@@ -1,7 +1,9 @@
 from Expression import *
 from MatchAndSubstitute import *
+
 # from pprint import pprint
 from typing import *
+
 # from abc import ABCMeta, abstractmethod
 from enum import Enum, auto
 import heapq
@@ -95,12 +97,14 @@ import heapq
 #    expr: Expression
 #    parent: 'ExprAndParent'
 
+
 class ExprAndParent:
     _expr: Expression
-    _parent: 'ExprAndParent'
+    _parent: "ExprAndParent"
 
-    def __init__(self, expr: Expression,
-                 parent: Optional['ExprAndParent']) -> None:
+    def __init__(
+        self, expr: Expression, parent: Optional["ExprAndParent"]
+    ) -> None:
         self._expr = expr
         self._parent = parent
 
@@ -109,7 +113,7 @@ class ExprAndParent:
         return self._expr
 
     @property
-    def parent(self) -> 'ExprAndParent':
+    def parent(self) -> "ExprAndParent":
         return self._parent
 
     def __repr__(self) -> str:
@@ -121,9 +125,9 @@ class RulePosition:
     premise: int = 0
     target: int = 0
 
-    def __init__(self,
-                 rule: Union[ExprAndParent, Expression],
-                 parent=None) -> None:
+    def __init__(
+        self, rule: Union[ExprAndParent, Expression], parent=None
+    ) -> None:
         if isinstance(rule, ExprAndParent):
             assert parent is None
             self.rule = rule
@@ -132,8 +136,11 @@ class RulePosition:
             self.rule = ExprAndParent(rule, parent)
 
     def __repr__(self):
-        return '[premise: ' + str(self.premise) + ', target: ' + \
-               str(self.target) + ', rule: ' + str(self.rule.expr) + ']'
+        return "[premise: " + str(self.premise) + ", target: " + str(
+            self.target
+        ) + ", rule: " + str(
+            self.rule.expr
+        ) + "]"
 
 
 class RuleAndScore:
@@ -143,7 +150,7 @@ class RuleAndScore:
     def __init__(self, rule: ExprAndParent) -> None:
         self.rule = rule
 
-    def __lt__(self, other: 'RuleAndScore') -> bool:
+    def __lt__(self, other: "RuleAndScore") -> bool:
         return self.score < other.score
 
 
@@ -157,12 +164,13 @@ class Direction(Enum):
 # searches."  I think we should use the same Exprs class for all, and the
 # difference comes in the engine code.
 
+
 class GoalExprsABC(Mapping[Expression, ExprAndParent]):
     # noinspection PyUnusedLocal
     @abc.abstractmethod
-    def __init__(self,
-                 goals: Sequence[ExprAndParent],
-                 parent: Optional['GoalExprsABC']) -> None:
+    def __init__(
+        self, goals: Sequence[ExprAndParent], parent: Optional["GoalExprsABC"]
+    ) -> None:
         pass
 
     @abc.abstractmethod
@@ -174,7 +182,7 @@ class GoalExprsABC(Mapping[Expression, ExprAndParent]):
         raise KeyError
 
     def __repr__(self):
-        return '\n'.join(str(expr) for expr in self)
+        return "\n".join(str(expr) for expr in self)
 
 
 class GoalExprsBruteForce(GoalExprsABC):
@@ -182,15 +190,17 @@ class GoalExprsBruteForce(GoalExprsABC):
     _exprs_map: MutableMapping[Expression, ExprAndParent]
     _parent: GoalExprsABC
 
-    def __init__(self, exprs: List[ExprAndParent], parent: GoalExprsABC) \
-            -> None:
+    def __init__(
+        self, exprs: List[ExprAndParent], parent: GoalExprsABC
+    ) -> None:
         super().__init__(exprs, parent)
         assert all(isinstance(e, ExprAndParent) for e in exprs)
         self._parent = parent
         self._exprs_list = exprs
         self._exprs_map = {
-            expr_and_parent.expr: expr_and_parent for expr_and_parent in
-            self._exprs_list}
+            expr_and_parent.expr: expr_and_parent
+            for expr_and_parent in self._exprs_list
+        }
 
     def __len__(self) -> int:
         return len(self._exprs_list)
@@ -212,23 +222,26 @@ class GoalExprsBruteForce(GoalExprsABC):
 class Exprs(GoalExprsABC):
     exprs_non_rules: List[ExprAndParent]
     exprs_rules: List[RulePosition]
-    parent: Optional['Exprs']
+    parent: Optional["Exprs"]
     exprs_map: Dict[Expression, ExprAndParent]
 
-    def __init__(self,
-                 exprs: Sequence[ExprAndParent],
-                 parent: Optional['Exprs'] = None) -> None:
+    def __init__(
+        self, exprs: Sequence[ExprAndParent], parent: Optional["Exprs"] = None
+    ) -> None:
         super().__init__(exprs, parent)
         self.parent = parent
 
         assert all(isinstance(e, ExprAndParent) for e in exprs)
         self.exprs_non_rules = [e for e in exprs if not is_rule(e.expr)]
-        self.exprs_rules = [RulePosition(e, None)
-                            for e in exprs if is_rule(e.expr)]
+        self.exprs_rules = [
+            RulePosition(e, None) for e in exprs if is_rule(e.expr)
+        ]
 
-        self.exprs_map = {expr.expr: expr for expr in
-                          self.exprs_non_rules +
-                          [r.rule for r in self.exprs_rules]}
+        self.exprs_map = {
+            expr.expr: expr
+            for expr in self.exprs_non_rules
+            + [r.rule for r in self.exprs_rules]
+        }
 
     def add(self, expr_and_parent: ExprAndParent):
         if is_rule(expr_and_parent.expr):
@@ -240,8 +253,9 @@ class Exprs(GoalExprsABC):
     def __contains__(self, expr: Expression) -> bool:
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
-        return bool(expr in self.exprs_map or
-                    (self.parent and expr in self.parent))
+        return bool(
+            expr in self.exprs_map or (self.parent and expr in self.parent)
+        )
 
     def __getitem__(self, key: Expression) -> ExprAndParent:
         if key in self.exprs_map:
@@ -286,15 +300,17 @@ class Exprs(GoalExprsABC):
         # temp."  I'd rather have the clarity of just "return [ ... ] + seq".
         parent_equalities = self.parent.equalities() if self.parent else []
         return [
-            rule_pos.rule for rule_pos
-            in self.exprs_rules
-            if is_equality(rule_pos.rule.expr)] + parent_equalities
+            rule_pos.rule
+            for rule_pos in self.exprs_rules
+            if is_equality(rule_pos.rule.expr)
+        ] + parent_equalities
 
     def all_exprs(self) -> List[ExprAndParent]:
         # This won't work in general, because when we add a rule, it will change
         # the index of all elements of exprs_list.  Oi.
-        return self.exprs_non_rules + self.immediate_rules() + \
-               (self.parent.all_exprs() if self.parent else [])
+        return self.exprs_non_rules + self.immediate_rules() + (
+            self.parent.all_exprs() if self.parent else []
+        )
 
     def __str__(self) -> str:
         if self.parent:
@@ -305,39 +321,47 @@ class Exprs(GoalExprsABC):
 class ProofState:
     goals: GoalExprsABC
     context: Exprs
-    _parent: Optional['ProofState']
+    _parent: Optional["ProofState"]
     verbose: bool
 
-    def __init__(self,
-                 context: Sequence[ExprAndParent],
-                 goals: Sequence[ExprAndParent],
-                 goal_exprs_class: Type[GoalExprsABC],
-                 parent: Optional['ProofState'],
-                 verbose: bool) -> None:
+    def __init__(
+        self,
+        context: Sequence[ExprAndParent],
+        goals: Sequence[ExprAndParent],
+        goal_exprs_class: Type[GoalExprsABC],
+        parent: Optional["ProofState"],
+        verbose: bool,
+    ) -> None:
         self.verbose = verbose
         self._parent = parent
 
         # context and goals are actually not used in any method.  So this
         # class is more like a C++ struct than a class.  Yikes!
-        self.context = Exprs(context, getattr(parent, 'context', None))
+        self.context = Exprs(context, getattr(parent, "context", None))
         # Only the "brute force" constructor takes a second argument here,
         # which is I think why PyCharm is complaining.
-        self.goals = goal_exprs_class(goals, getattr(parent, 'goals', None))
+        self.goals = goal_exprs_class(goals, getattr(parent, "goals", None))
 
     def is_instance(self, expr: Expression, rule: Expression):
         """From self, only uses verbose"""
         subs = is_instance(expr, rule)
         if self.verbose and subs is not None:
-            print(str(expr) + ' is an instance of ' +
-                  str(rule) + ' subs ' + str(subs) + '  !!!!!!')
+            print(
+                str(expr)
+                + " is an instance of "
+                + str(rule)
+                + " subs "
+                + str(subs)
+                + "  !!!!!!"
+            )
         return subs
 
     def try_rule(
-            self,
-            rule: Expression,
-            expr_and_parent_in: ExprAndParent,
-            direction: Direction) -> \
-            Union[bool, List[Expression]]:
+        self,
+        rule: Expression,
+        expr_and_parent_in: ExprAndParent,
+        direction: Direction,
+    ) -> Union[bool, List[Expression]]:
         """If it finds a solution, returns path from start to goal.  If it
         doesn't, returns a bool as to whether or not it at least generated a
         new expression which it added to already_seen.
@@ -361,10 +385,11 @@ class ProofState:
 
         if self.verbose:
             print(
-                'try_rule: ' +
-                str(expr_and_parent_in.expr) +
-                ' was transformed into ' +
-                repr(exprs))
+                "try_rule: "
+                + str(expr_and_parent_in.expr)
+                + " was transformed into "
+                + repr(exprs)
+            )
 
         added = False
         for move in exprs:
@@ -384,21 +409,24 @@ class ProofState:
             if found:
                 assert isinstance(found, ExprAndParent)
                 if direction == Direction.FORWARD:
-                    return list(reversed(collect_path(found))) + \
-                           collect_path(move_and_parent)
+                    return list(reversed(collect_path(found))) + collect_path(
+                        move_and_parent
+                    )
                 else:
                     assert direction == Direction.BACKWARD
-                    return list(reversed(collect_path(move_and_parent))) + \
-                        collect_path(found)
+                    return list(
+                        reversed(collect_path(move_and_parent))
+                    ) + collect_path(
+                        found
+                    )
             already_seen.add(move_and_parent)
             added = True
 
         return added
 
     def match_against_exprs(
-            self,
-            move: Expression,
-            targets: Mapping[Expression, ExprAndParent]) -> ExprAndParent:
+        self, move: Expression, targets: Mapping[Expression, ExprAndParent]
+    ) -> ExprAndParent:
         """Determines whether move equals or is_instance any
         element of targets.
 
@@ -410,9 +438,14 @@ class ProofState:
             return targets[move]
         assert all(isinstance(t, Expression) for t in targets)
 
-        return next((targets[target] for target in targets if
-                     self.is_instance(move, target) is not None),
-                    None)
+        return next(
+            (
+                targets[target]
+                for target in targets
+                if self.is_instance(move, target) is not None
+            ),
+            None,
+        )
 
     def try_rules_simple(self, direction: Direction, verbose: bool):
         # We have a number of rules and a number of non-rules.
@@ -432,8 +465,9 @@ class ProofState:
         # Would be clearer and more type safe if Python had a separate class
         # for priority queue, instead of exposing the implementation like
         # this.  Oh well.
-        rules = heapq.heapify([RuleAndScore(r) for r in
-                               self.context.all_rules()])
+        rules = heapq.heapify(
+            [RuleAndScore(r) for r in self.context.all_rules()]
+        )
 
         # Need to keep track of which rules we've tried on which expressions, as
         # well as a score?
@@ -464,9 +498,9 @@ class ProofState:
         return False
 
 
-def match(dummies: AbstractSet[Variable], pattern: Expression,
-          target: Expression) -> \
-        Optional[Mapping[Expression, Expression]]:
+def match(
+    dummies: AbstractSet[Variable], pattern: Expression, target: Expression
+) -> Optional[Mapping[Expression, Expression]]:
     """Matches "pattern" against "target"s root, i.e. not recursively.
 
     "dummies" is the set of Nodes in "pattern" that can match any sub
@@ -491,8 +525,10 @@ def match(dummies: AbstractSet[Variable], pattern: Expression,
             if isinstance(target, Node):
                 # If target is anything other than a variable or nuber literal,
                 # don't match.
-                if not (isinstance(target, NumberLiteral) or
-                        target.free_variables(set())):
+                if not (
+                    isinstance(target, NumberLiteral)
+                    or target.free_variables(set())
+                ):
                     return None
             return {pattern: target}
         if pattern == target:
@@ -555,13 +591,14 @@ def is_rule(expr: Expression) -> bool:
     if has_head(expr, ForAll):
         return is_rule(cast(CompositeExpression, expr)[2])
 
-    return has_head(expr, Implies) or \
-        has_head(expr, Equivalent) or \
-        has_head(expr, Equal)
+    return has_head(expr, Implies) or has_head(expr, Equivalent) or has_head(
+        expr, Equal
+    )
 
 
-def is_instance(expr: Expression, rule: Expression, dummies: Set[Variable] =
-                set()):
+def is_instance(
+    expr: Expression, rule: Expression, dummies: Set[Variable] = set()
+):
     """Determines whether 'expr' an instance of 'rule.'
 
     returns the substitution that makes them match, or None if there's no match.
@@ -575,8 +612,8 @@ def is_instance(expr: Expression, rule: Expression, dummies: Set[Variable] =
     if has_head(rule, ForAll):
         rule = cast(CompositeExpression, rule)
         return is_instance(
-            expr, rule[2],
-            dummies.union(rule.get_variables(dummies)))
+            expr, rule[2], dummies.union(rule.get_variables(dummies))
+        )
     else:
         return match(dummies, rule, expr)
 
@@ -599,6 +636,7 @@ def is_instance(expr: Expression, rule: Expression, dummies: Set[Variable] =
 # Python doesn't have a singly linked list class, so we roll our own.
 # Wonder if a named tuple would be better: hashable, constant.
 class PathToRoot:
+
     def __init__(self, node, parent):
         self.node = node
         self.parent = parent
@@ -647,8 +685,9 @@ def path_length(node1, node2, expr):
 
             assert thing1.depth == thing2.depth
 
-            path_len = (path1.depth - thing1.depth) + \
-                       (path2.depth - thing1.depth)
+            path_len = (path1.depth - thing1.depth) + (
+                path2.depth - thing1.depth
+            )
             ret.append((path_len, path1.node, path2.node))
     # Sort by path_len.
     ret.sort(key=lambda x: x[0])
@@ -658,21 +697,16 @@ def path_length(node1, node2, expr):
 # Appends to paths_from_targest_to_root, the paths from exp to all nodes which
 # == target, with parent_path_to_root pre-pended.
 def path_length_helper(
-        target,
-        expr,
-        parent_path_to_root,
-        paths_from_targets_to_root):
+    target, expr, parent_path_to_root, paths_from_targets_to_root
+):
     if expr == target:
-        paths_from_targets_to_root.append(
-            PathToRoot(expr, parent_path_to_root))
+        paths_from_targets_to_root.append(PathToRoot(expr, parent_path_to_root))
     elif isinstance(expr, CompositeExpression):
         path_to_root = PathToRoot(expr, parent_path_to_root)
         for subtree in expr:
             path_length_helper(
-                target,
-                subtree,
-                path_to_root,
-                paths_from_targets_to_root)
+                target, subtree, path_to_root, paths_from_targets_to_root
+            )
 
 
 def collect_path(start: ExprAndParent) -> List[Expression]:
@@ -685,11 +719,13 @@ def collect_path(start: ExprAndParent) -> List[Expression]:
 
 
 # Should really be a member of ProofState.  Oh well.
-def try_all_rules(non_rules: List[ExprAndParent],
-                  rules: List[ExprAndParent],
-                  state: ProofState,
-                  direction: Direction,
-                  verbose: bool) -> Union[bool, List[Expression]]:
+def try_all_rules(
+    non_rules: List[ExprAndParent],
+    rules: List[ExprAndParent],
+    state: ProofState,
+    direction: Direction,
+    verbose: bool,
+) -> Union[bool, List[Expression]]:
     made_progress = False
     for cont in non_rules:
         if verbose:
@@ -697,10 +733,7 @@ def try_all_rules(non_rules: List[ExprAndParent],
         for rule in rules:
             if verbose:
                 print("Rule: " + str(rule.expr))
-            found = state.try_rule(
-                rule.expr,
-                cont,
-                direction)
+            found = state.try_rule(rule.expr, cont, direction)
             if isinstance(found, bool):
                 made_progress = made_progress or found
             else:
@@ -720,10 +753,13 @@ def try_all_rules(non_rules: List[ExprAndParent],
 # trees to pattern match against, and of course path length and other structural
 # things.
 
-def try_rules(context: Sequence[Expression],
-              goal: Expression,
-              general_rules: Sequence[Expression],
-              verbose=False):
+
+def try_rules(
+    context: Sequence[Expression],
+    goal: Expression,
+    general_rules: Sequence[Expression],
+    verbose=False,
+):
     """context and context_rules are disjoint, all in context_rules satisfy
     is_rule(), whereas none of those in context do."""
 
@@ -773,37 +809,45 @@ def try_rules(context: Sequence[Expression],
     #   now, always the LHS) and try to transform it into the RHS by working
     #   forward.
 
-    general = ProofState([ExprAndParent(r, None) for r in general_rules],
-                         [],
-                         Exprs,
-                         None,
-                         verbose)
+    general = ProofState(
+        [ExprAndParent(r, None) for r in general_rules],
+        [],
+        Exprs,
+        None,
+        verbose,
+    )
 
-    state = ProofState([ExprAndParent(e, None) for e in context],
-                       [ExprAndParent(goal, None)],
-                       Exprs,
-                       general,
-                       verbose)
+    state = ProofState(
+        [ExprAndParent(e, None) for e in context],
+        [ExprAndParent(goal, None)],
+        Exprs,
+        general,
+        verbose,
+    )
 
     while True:
         made_progress = False
         # Step 1: work forward from premises to goal.
-        found = try_all_rules(state.context.immediate_non_rules(),
-                              state.context.immediate_rules(),
-                              state,
-                              Direction.FORWARD,
-                              verbose)
+        found = try_all_rules(
+            state.context.immediate_non_rules(),
+            state.context.immediate_rules(),
+            state,
+            Direction.FORWARD,
+            verbose,
+        )
         if isinstance(found, bool):
             made_progress = made_progress or found
         else:
             return found
 
         # Step 2: simplification / transformations from the goal.
-        found = try_all_rules(cast(Exprs, state.goals).immediate_non_rules(),
-                              state.context.immediate_rules(),
-                              state,
-                              Direction.BACKWARD,
-                              verbose)
+        found = try_all_rules(
+            cast(Exprs, state.goals).immediate_non_rules(),
+            state.context.immediate_rules(),
+            state,
+            Direction.BACKWARD,
+            verbose,
+        )
         if isinstance(found, bool):
             made_progress = made_progress or found
         else:
@@ -812,8 +856,10 @@ def try_rules(context: Sequence[Expression],
         if not made_progress:
             break
 
-    print("Using just the problem specific premises & rules hasn't let us "
-          "prove the goal.  Switching to general purpose premises / rules.")
+    print(
+        "Using just the problem specific premises & rules hasn't let us "
+        "prove the goal.  Switching to general purpose premises / rules."
+    )
 
     # Now, for each goal that's a possibly universally quantified equality,
     # grab the LHS and try to transform it into the RHS.
@@ -824,8 +870,14 @@ def try_rules(context: Sequence[Expression],
         lhs = ExprAndParent(goal_expr[1], None)
         rhs = ExprAndParent(goal_expr[2], current_goal)
         if verbose:
-            print('*** goal: ' + str(current_goal.expr) + ', LHS: ' +
-                  str(lhs.expr) + ', target: ' + str(rhs.expr))
+            print(
+                "*** goal: "
+                + str(current_goal.expr)
+                + ", LHS: "
+                + str(lhs.expr)
+                + ", target: "
+                + str(rhs.expr)
+            )
 
         # So, (P + Q) * M is successfully transformed into
         # P * M + Q * M.  We need to add that to the Exprs and try again.
@@ -850,15 +902,15 @@ def try_rules(context: Sequence[Expression],
             if not found:
                 break
 
-    print('************************  Final context:')
-    print('\n'.join([str(v) for v in state.context]))
-    print('************************  Final goals:')
-    print('\n'.join([str(v) for v in state.goals]))
+    print("************************  Final context:")
+    print("\n".join([str(v) for v in state.context]))
+    print("************************  Final goals:")
+    print("\n".join([str(v) for v in state.goals]))
 
     return []
 
 
-'''
+"""
 Need to add:
   - When applying a rule, don't apply if there are any unbound variables?  ' \
                              'Would save us transforming "0" into "0 * x".'
@@ -892,27 +944,36 @@ Need to add:
   situations.  I was getting at that with the general vs problem-specific
   rules: try the problem specific ones first, since they're probably relevant to
   the problem at hand.
-'''
+"""
 
 
-def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
-                          rules: Sequence[Expression],
-                          verbose=False):
-    global_state = ProofState([ExprAndParent(r, None) for r in rules], [],
-                              GoalExprsBruteForce, None,
-                              verbose)
-    state = ProofState([ExprAndParent(e, None) for e in context],
-                       [ExprAndParent(goal, None)],
-                       GoalExprsBruteForce,
-                       global_state,
-                       verbose)
+def try_rules_brute_force(
+    context: Sequence[Expression],
+    goal: Expression,
+    rules: Sequence[Expression],
+    verbose=False,
+):
+    global_state = ProofState(
+        [ExprAndParent(r, None) for r in rules],
+        [],
+        GoalExprsBruteForce,
+        None,
+        verbose,
+    )
+    state = ProofState(
+        [ExprAndParent(e, None) for e in context],
+        [ExprAndParent(goal, None)],
+        GoalExprsBruteForce,
+        global_state,
+        verbose,
+    )
 
     for iteration in range(1000):
         checked_all = True
         rule_index = 0
 
         if verbose:
-            print('+++++++++++++++  Pass ' + str(iteration))
+            print("+++++++++++++++  Pass " + str(iteration))
 
         all_rules = state.context.all_rules()
         while rule_index < len(all_rules):
@@ -922,7 +983,7 @@ def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
             assert rule_pos.target <= len(state.goals.all_exprs())
 
             if verbose:
-                print('********** Rule: ' + str(rule_pos))
+                print("********** Rule: " + str(rule_pos))
 
             # Work forward from the context.
             if rule_pos.premise < len(state.context.all_non_rules()):
@@ -930,9 +991,8 @@ def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
                 # print('context index: ' + str(rule_pos.premise))
                 context_expr = state.context.all_non_rules()[rule_pos.premise]
                 found = state.try_rule(
-                    rule_pos.rule.expr,
-                    context_expr,
-                    Direction.FORWARD)
+                    rule_pos.rule.expr, context_expr, Direction.FORWARD
+                )
                 if not isinstance(found, bool):
                     return found
 
@@ -949,9 +1009,8 @@ def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
                 goal_expr = state.goals.all_exprs()[rule_pos.target]
                 assert isinstance(goal_expr, ExprAndParent)
                 found = state.try_rule(
-                    rule_pos.rule.expr,
-                    goal_expr,
-                    Direction.BACKWARD)
+                    rule_pos.rule.expr, goal_expr, Direction.BACKWARD
+                )
                 if not isinstance(found, bool):
                     return found
 
@@ -967,7 +1026,7 @@ def try_rules_brute_force(context: Sequence[Expression], goal: Expression,
     return None
 
 
-'''
+"""
 def blah():
     import Parser
 
@@ -994,4 +1053,4 @@ def blah():
 
     proof = try_rules([ex('P in B'), ex('Q in B')], ex('P + Q in B'),
                       [defB], general_rules, True)
-'''
+"""

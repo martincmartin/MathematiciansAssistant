@@ -13,8 +13,7 @@ class Parser:
     token: TokenInfo
     tokens: List[TokenInfo]
 
-    keywords = {'in', 'and', 'or', 'not', '==>',
-                '<==>', 'forall', 'exists'}
+    keywords = {"in", "and", "or", "not", "==>", "<==>", "forall", "exists"}
 
     class_map = {
         STAR: Multiply,
@@ -27,14 +26,14 @@ class Parser:
         NOTEQUAL: Equal,  # TODO
         LESSEQUAL: Equal,  # TODO
         GREATEREQUAL: Equal,  # TODO
-        'in': Element,
-        'and': And,
-        'or': Or,
-        'not': Not,
-        '==>': Implies,
-        '<==>': Equivalent,
-        'forall': ForAll,
-        'exists': Exists,
+        "in": Element,
+        "and": And,
+        "or": Or,
+        "not": Not,
+        "==>": Implies,
+        "<==>": Equivalent,
+        "forall": ForAll,
+        "exists": Exists,
     }
 
     def __init__(self, input_str: str) -> None:
@@ -43,7 +42,7 @@ class Parser:
 
         # We want to peek ahead, and all our input strings should be small
         # anyway, so just turn the generator into a list.
-        tokens = list(tokenize(io.BytesIO(input_str.encode('utf-8')).readline))
+        tokens = list(tokenize(io.BytesIO(input_str.encode("utf-8")).readline))
         self.tokens = []
         skip = 0
         for index, tok in enumerate(tokens):
@@ -58,30 +57,35 @@ class Parser:
             # doesn't have ==> or <==>, but it does parse those into a sequence
             # of tokens.  We should really write our own lexer, wouldn't be
             # hard.
-            if tok.exact_type == EQEQUAL and \
-               index + 1 < len(tokens) and \
-               tokens[index + 1].exact_type == GREATER:
+            if (
+                tok.exact_type == EQEQUAL
+                and index + 1 < len(tokens)
+                and tokens[index + 1].exact_type == GREATER
+            ):
                 # Create a single ==> token.
                 self.tokens.append(
                     type(tok)(
-                        type=NAME,
-                        string='==>',
-                        start=None,
-                        end=None,
-                        line=None))
+                        type=NAME, string="==>", start=None, end=None, line=None
+                    )
+                )
                 skip = 1
-            elif tok.exact_type == LESSEQUAL and \
-                    index + 2 < len(tokens) and \
-                    tokens[index + 1].exact_type == EQUAL and \
-                    tokens[index + 2].exact_type == GREATER:
+            elif tok.exact_type == LESSEQUAL and index + 2 < len(
+                tokens
+            ) and tokens[
+                index + 1
+            ].exact_type == EQUAL and tokens[
+                index + 2
+            ].exact_type == GREATER:
                 # Create a single <==> token.
                 self.tokens.append(
                     type(tok)(
                         type=NAME,
-                        string='<==>',
+                        string="<==>",
                         start=None,
                         end=None,
-                        line=None))
+                        line=None,
+                    )
+                )
                 skip = 2
 
             else:
@@ -121,7 +125,7 @@ class Parser:
         if self.accept(NAME):
             return var(self.token.string)
 
-        '''
+        """
         This is the Python syntax for list literals: [a, b, c].
         if self.accept(LSQB):
             mylist = [self.expression()]
@@ -129,7 +133,7 @@ class Parser:
                 mylist.append(self.expression())
             self.expect(RSQB)
             return CompositeExpression([List_()] + mylist)
-        '''
+        """
 
         # Matlab syntax for matricies: [a b; c d]
         if self.accept(LSQB):
@@ -167,32 +171,27 @@ class Parser:
         e = self.additive()
         # Allow a < b < c.
         while self.accept(
-                LESS,
-                GREATER,
-                EQEQUAL,
-                NOTEQUAL,
-                LESSEQUAL,
-                GREATEREQUAL,
-                'in'):
+            LESS, GREATER, EQEQUAL, NOTEQUAL, LESSEQUAL, GREATEREQUAL, "in"
+        ):
             clz = self.class_map[self.type]
             e = CompositeExpression([clz(), e, self.additive()])
         return e
 
     def negation(self) -> Expression:
-        if self.accept('not'):
+        if self.accept("not"):
             return CompositeExpression([Not(), self.comparison()])
         return self.comparison()
 
     def and_or(self) -> Expression:
         e = self.negation()
-        while self.accept('and', 'or'):
+        while self.accept("and", "or"):
             clz = self.class_map[self.type]
             e = CompositeExpression([clz(), e, self.negation()])
         return e
 
     def implies_equiv(self) -> Expression:
         e = self.and_or()
-        while self.accept('==>', '<==>'):
+        while self.accept("==>", "<==>"):
             clz = self.class_map[self.type]
             e = CompositeExpression([clz(), e, self.and_or()])
         return e
