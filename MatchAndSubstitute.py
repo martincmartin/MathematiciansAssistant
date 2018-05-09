@@ -5,7 +5,7 @@ Lowest level building blocks of deduction.
 
 from Expression import *
 from typing import *
-import enum
+import enum as _enum
 
 
 def match(
@@ -74,10 +74,10 @@ def match(
     return ret
 
 
-class Direction(enum.Enum):
-    FORWARD = enum.auto()
-    BACKWARD = enum.auto()
-    BOTH = enum.auto()
+class Direction(_enum.Enum):
+    FORWARD = _enum.auto()
+    BACKWARD = _enum.auto()
+    BOTH = _enum.auto()
 
 
 def is_rule(expr: Expression) -> bool:
@@ -155,9 +155,9 @@ def _try_rule_recursive(
         # can match the RHS, and if so, we return the LHS, with appropriate
         # substitutions and free variables.  If we're working forwards, we match
         # the LHS and substitue on the RHS.
-        if direction == Direction.BACKWARD:
+        if direction == Direction.BACKWARD:  # type: ignore
             return _match_and_substitute(dummies, rule[2], rule[1], target)
-        elif direction == Direction.FORWARD:
+        elif direction == Direction.FORWARD:  # type: ignore
             return _match_and_substitute(dummies, rule[1], rule[2], target)
 
     if has_head(rule, Equivalent) or has_head(rule, Equal):
