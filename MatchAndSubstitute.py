@@ -126,16 +126,19 @@ def try_rule(
     """
     if str(rule) == "P * M == M * P":
         print("OMG")
-    return _try_rule_recursive(set(), rule, target, direction)
+    return _try_rule_recursive(frozenset(), rule, target, direction)
 
 
 def _try_rule_recursive(
-    dummies: Set[Variable],
+    dummies: FrozenSet[Variable],
     rule: Expression,
     target: Expression,
     direction: Direction,
 ) -> Set[Expression]:
-    """See try_rule()."""
+    """Apply "forall(dummies, rule)" to "target", return generated expressions.
+
+    See try_rule() for more details.
+    """
     assert is_rule(rule)
     rule = cast(CompositeExpression, rule)
 
@@ -150,6 +153,10 @@ def _try_rule_recursive(
             direction,
         )
 
+    # Rename any variables now, so we don't need to worry about them when
+    # calling *match_and_substitute below.
+    (_, dummies, rule) = rename_quant(forall(dummies, rule), rule.bound_variables())
+
     if has_head(rule, Implies):
         # For ==>, if we're working backwards from the conclusion, we see if we
         # can match the RHS, and if so, we return the LHS, with appropriate
@@ -161,6 +168,13 @@ def _try_rule_recursive(
             return _match_and_substitute(dummies, rule[1], rule[2], target)
 
     if has_head(rule, Equivalent) or has_head(rule, Equal):
+        bound_in_target = target.bound_variables()
+        if not dummies.isdisjoint(bound_in_target):
+            # Should I rename dummies, or target?  Dummies
+            # is probably less disruptive.
+            (_, dummies, rule) = rename_quant(forall(dummies, rule),
+                                              bound_in_target)
+
         return _recursive_match_and_substitute(
             dummies, rule[2], rule[1], target
         ).union(
@@ -171,7 +185,7 @@ def _try_rule_recursive(
 
 
 def _match_and_substitute(
-    dummies: AbstractSet[Variable],
+    dummies: FrozenSet[Variable],
     antecedent: Expression,
     consequent: Expression,
     target: Expression,
@@ -202,7 +216,7 @@ def _recursive_match_and_substitute(
 ) -> Set[Expression]:
     """In "target", replaces any occurrence of antecedent with consequent.
 
-    That is, apply 'forall(dummies) antecedent ==> consequent' to all
+    That is, apply 'forall(dummies) antecedent <==> consequent' to all
     subexpressions of target.
 
     Returns a (possibly empty) set().
@@ -222,10 +236,29 @@ def _recursive_match_and_substitute(
     target = cast(CompositeExpression, target)
 
     if has_head(target, Quantifier):
-        quant_vars: Iterable[Variable] = target.get_variables(set())
-        # If this fails, rename the quant_var.
-        assert antecedent.free_variables(set()).isdisjoint(quant_vars)
-        assert consequent.free_variables(set()).isdisjoint(quant_vars)
+        quant_vars = target.get_variables(set())
+        free_vars = antecedent.free_variables(set()).union(
+            consequent.free_variables(set())
+        )
+        if not free_vars.isdisjoint(quant_vars):
+            # First, if its a dummy that collides, rename that, since they
+            # won't appear in the result anyway.
+            assert dummies.isdisjoint(quant_vars)
+            # if not dummies.isdisjoint(quant_vars):
+            #     Hmm.  dummies might be used above us.  Let's do this outside'
+            #     the recursive call.
+            #     forall(dummies, equivalent(antecedent, consequent))
+            #     antecedent = rename_variable(antecedent, dummies)
+            #     consequent = rename_variable(consequent, dummies)
+
+        free_vars = antecedent.free_variables(set()).union(
+            consequent.free_variables(set())
+        )
+
+        if not free_vars.isdisjoint(quant_vars):
+            target = rename_quant(target, free_vars)
+            quant_vars = target.get_variables(set())
+        assert free_vars.isdisjoint(quant_vars)
 
     for index, expr in enumerate(target):
         all_changed = _recursive_match_and_substitute(
@@ -252,6 +285,9 @@ def _substitute(
 
     expr = cast(CompositeExpression, expr)
 
+    # Actually, this does the wrong thing for quantifiers, since the quantified
+    # over variable shadows any instance in what we're trying to substitute.  Hmm
+    # Should I just disallow shadowing?
     return CompositeExpression([_substitute(subs, e) for e in expr])
 
     # TODO: Handle "or" and "and", e.g. A <==> B should be the same as
@@ -280,13 +316,41 @@ def is_equality(expr: Expression) -> bool:
     return has_head(expr, Equal)
 
 
+def new_variable(old_variable: Variable, taken: Set[Variable]) -> Variable:
+    names = {t.name for t in taken}
+    new_name = old_variable.name
+    while new_name in names:
+        new_name = "_" + new_name
+    return var(new_name)
+
+
 def get_lhs(expr: Expression) -> Expression:
     assert is_equality(expr)
     while has_head(expr, ForAll):
         expr = cast(CompositeExpression, expr)
-        # Need to do something with the variables here.  Hmm.  Maybe this is why
-        # logic traditionally has the concept of free vs bound variables?
+        # Need to do something with the variables here.  Hmm.  Maybe this is
+        # why logic traditionally has the concept of free vs bound variables?
         expr = expr[2]
     assert has_head(expr, Equal)
     expr = cast(CompositeExpression, expr)
     return expr[1]
+
+
+def rename_quant(
+    quant: CompositeExpression, taken: Set[Variable]
+) -> CompositeExpression:
+    """Given a quantified expression, renames any variables that are in "taken"."""
+    assert has_head(quant, Quantifier)
+
+    return cast(CompositeExpression, _rename_variables(quant.get_variables(
+        frozenset()), taken, quant))
+
+def _rename_variables(to_rename: Set['Variable'], taken: Set[Variable],
+                     expr: Expression) -> Expression:
+    to_rename = taken.intersection(to_rename)
+    if not to_rename:
+        return expr
+
+    # Decide on new variable names.
+    subs = {old_name: new_variable(old_name, taken) for old_name in to_rename}
+    return _substitute(subs, expr)

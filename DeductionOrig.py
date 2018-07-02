@@ -940,7 +940,7 @@ Need to add:
   1 * x == x rule backward isn't leading anywhere, so to be less likely to
   apply it.  Should we have a simple prior, that says how helpful a rule is
   likely to be?  There's also the idea of a rule that always applies (because
-  the antecedant is just "forall x: x"), vs a rule that only applies in certain
+  the antecedent is just "forall x: x"), vs a rule that only applies in certain
   situations.  I was getting at that with the general vs problem-specific
   rules: try the problem specific ones first, since they're probably relevant to
   the problem at hand.

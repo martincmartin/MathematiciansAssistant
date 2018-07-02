@@ -280,11 +280,12 @@ class TestTryRule(unittest.TestCase):
         )
 
     def test_bound_vs_free_vars(self):
-        self.assertRaises(
-            AssertionError,
+        # with self.assertRaises(AssertionError):
+        self.assertEqual(
             try_rule(
                 ex("a == b"), forall(a, ex("a + a == 2 * a")), Direction.FORWARD
             ),
+            set(),
         )
 
 

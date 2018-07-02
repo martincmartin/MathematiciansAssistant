@@ -86,13 +86,22 @@ class Expression(abc.ABC):
     def __repr__(self) -> str:
         return self.repr_and_precedence()[0]
 
-    # Free variables are the ones that are *not* covered by an forall or exists.  They're
-    # value / semantics comes from outside the expression.
     def free_variables(
         self, exclude: AbstractSet["Variable"]
     ) -> Set["Variable"]:
+        """Returns the set of free variables in this (sub-)expression.
+
+        Free variables are the ones that are *not* covered by an forall or exists.  They're
+        value / semantics comes from outside the expression."""
         return set()
 
+    def bound_variables(self) -> Set["Variable"]:
+        """Returns the set of bound variables in this (sub-)expression.
+
+        Bound variables are any variables that are quantified over, either at the root or in any
+        subexpression of the root.  These are the set of variables that will shadow any value /
+        semantics from outside this expression."""
+        raise NotImplementedError  # pragma: no cover
 
 class Node(Expression):
     # Mathematica calls this an Atom.  In Mathematica, Head of a node is
@@ -127,6 +136,21 @@ class Node(Expression):
             for variable in child.free_variables(exclude)
         }
 
+    def bound_variables(self) -> Set["Variable"]:
+        return set()
+
+    def bound_variables_tree(
+        self, args: Sequence[Expression]
+    ) -> Set["Variable"]:
+        return {
+            variable
+            for child in args
+            for variable in child.bound_variables()
+        }
+
+    def constructor_tree(self, args: Sequence[Expression]):
+        pass
+
     def __eq__(self, other) -> bool:
         return isinstance(self, type(other))
 
@@ -151,13 +175,17 @@ class Node(Expression):
 class Variable(Node):
     _name: str
 
-    def __init__(self, name):
+    def __init__(self, name: str)->None:
         self._name = name
 
-    def __repr__(self):
+    @property
+    def name(self) -> str:
         return self._name
 
-    def __eq__(self, other):
+    def __repr__(self) -> str:
+        return self._name
+
+    def __eq__(self, other) -> bool:
         return isinstance(other, Variable) and self._name == other._name
 
     def __hash__(self):
@@ -175,15 +203,29 @@ class Variable(Node):
             return {self}
 
 
-class CompositeExpression(Expression, tuple):
+class CompositeExpression(Expression, Tuple[Expression, ...]):
     # We need a shorter name for this.  Just "Composite"?  That
     # collides with the name for non-prime numbers.  "Internal"?
     # "Tree"?  "Cons"?  "Cells"?  "List"?  In Mathematica, a list is a
     # composite expression with head List.
 
+    # Inheriting from tuple means we can't modify the arguments
+    # in the constructor, e.g. to rename variables to avoid shadowing.
+    # So we should probably be using composition instead of
+    # inheritence here.  Oh well.
+
+    # See https://stackoverflow.com/questions/50317506
+    def __new__(cls, *args, **kwargs):
+        return tuple.__new__(cls, *args, **kwargs)
+
     def __init__(self, iterable: Iterable[Expression]) -> None:
         super().__init__()
+        for it in iterable:
+            assert isinstance(it, Hashable)
         assert all(isinstance(it, Hashable) for it in iterable)
+        children = list(iterable)
+        assert len(children) > 0
+        children[0].constructor_tree(children[1:])
 
     # I'm using inheritance instead of composition.  Oh well.
     def repr_and_precedence(self) -> Tuple[str, Precedence]:
@@ -205,10 +247,17 @@ class CompositeExpression(Expression, tuple):
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
     def get_variables(
-        self, other_dummies: AbstractSet[Variable]
+        self, other_dummies: FrozenSet[Variable]
     ) -> Iterable[Variable]:
         """Only defined for Quantifiers, gets the variables quantified over."""
         return self[0].get_variables_tree(self[1:], other_dummies)
+
+    def constructor_tree(self) -> None:
+        """Called from __init__, allows methods to reject the tree."""
+        pass
+
+    def bound_variables(self) -> Set["Variable"]:
+        return self[0].bound_variables_tree(self[1:])
 
 
 # I disagree with Python's "ask forgiveness, not permission" ethos, at
@@ -296,16 +345,10 @@ class Equivalent(Infix):
         Infix.__init__(self, "<==>", Precedence.IMPLIES_EQUIV)
 
 
-#        Infix.__init__(self, r'\iff')
-
-
 class Implies(Infix):
 
     def __init__(self):
         Infix.__init__(self, "==>", Precedence.IMPLIES_EQUIV)
-
-
-#        Infix.__init__(self, r'\implies')
 
 
 class And(Infix):
@@ -335,7 +378,7 @@ class Equal(Infix):
 class Quantifier(Node):
 
     def get_variables_tree(
-        self, args, other_dummies: Set[Variable]
+        self, args: Sequence[Expression], other_dummies: Set[Variable]
     ) -> Iterable[Variable]:
         if isinstance(args[0], Node):
             assert args[0] not in other_dummies
@@ -355,6 +398,19 @@ class Quantifier(Node):
             for child in args[1:]
             for variable in child.free_variables(exclude)
         }
+
+    def bound_variables_tree(
+        self, args: Sequence[Expression]
+    ) -> Set["Variable"]:
+        return {
+            variable
+            for child in args[1:]
+            for variable in child.bound_variables()
+        }.union(self.get_variables_tree(args, set()))
+
+    def constructor_tree(self, args: Sequence[Expression]) -> None:
+        assert args[1].bound_variables().isdisjoint(
+            self.get_variables_tree(args, set()))
 
 
 class ForAll(Quantifier):

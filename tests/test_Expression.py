@@ -119,14 +119,22 @@ class TestFreeVars(unittest.TestCase):
             implies(P, forall(P, ex("P or not P"))).free_variables(set()), {P}
         )
 
-    def test_shadow_bound(self) -> None:
-        self.assertEqual(
-            forall(P, implies(P, forall(P, ex("P or not P")))).free_variables(
-                set()
-            ),
-            set(),
-        )
+    # I've decided to outlaw shadowing, for the same reason we don't allow
+    # it in C++ code: it can confuse the human reader.
+    #
+    # def test_shadow_bound(self) -> None:
+    #     self.assertEqual(
+    #         forall(P, implies(P, forall(P, ex("P or not P")))).free_variables(
+    #             set()
+    #         ),
+    #         set(),
+    #     )
 
+class TestBoundVariables(unittest.TestCase):
+
+    def test_basic(self) -> None:
+        self.assertEqual(forall(P, ex("P * M == M * P")).bound_variables(),
+                         {P})
 
 if __name__ == "__main__":
     with typeguard.TypeChecker(["Parser", "Expression"]):
