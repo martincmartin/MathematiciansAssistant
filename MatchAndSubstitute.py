@@ -18,13 +18,15 @@ def match(
     are the nodes that count as variables.
 
     "dummies" is the set of Nodes in "pattern" that can match any sub
-    expression. (TODO: have types for dummies.)
+    expression.
 
     Returns the substitution, as dict, that makes them match, or None if there's
     no match.  Be careful: both the empty dict (meaning there's a match that
     works with any substitution) and None (they don't match no matter what you
     substitute) evaluate as false in Python.
     """
+
+    assert isinstance(target, Expression)
 
     if isinstance(pattern, Node):
         if pattern in dummies:
@@ -85,7 +87,7 @@ def is_rule(expr: Expression) -> bool:
     return a non-empty set for some target, either forwards or backwards.
     """
     if has_head(expr, ForAll):
-        return is_rule(cast(CompositeExpression, expr)[2])
+        return is_rule(cast(CompositeExpression, expr)[1])
 
     return has_head(expr, Implies) or has_head(expr, Equivalent) or has_head(
         expr, Equal
@@ -93,7 +95,7 @@ def is_rule(expr: Expression) -> bool:
 
 
 def is_instance(
-    expr: Expression, rule: Expression, dummies: Set[Variable] = set()
+    expr: Expression, rule: Expression, dummies: FrozenSet[Variable] = set()
 ) -> Optional[Mapping[Variable, Expression]]:
     """Determines whether 'expr' is an instance of 'rule.'
 
@@ -108,7 +110,7 @@ def is_instance(
     if has_head(rule, ForAll):
         rule = cast(CompositeExpression, rule)
         return is_instance(
-            expr, rule[2], dummies.union(rule.get_variables(dummies))
+            expr, rule[1], dummies.union(rule.get_variables(dummies))
         )
 
     return match(dummies, rule, expr)
@@ -126,6 +128,7 @@ def try_rule(
     """
     if str(rule) == "P * M == M * P":
         print("OMG")
+
     return _try_rule_recursive(frozenset(), rule, target, direction)
 
 
@@ -148,14 +151,16 @@ def _try_rule_recursive(
         # dummies.
         return _try_rule_recursive(
             dummies.union(rule.get_variables(dummies)),
-            rule[2],
+            rule[1],
             target,
             direction,
         )
 
     # Rename any variables now, so we don't need to worry about them when
     # calling *match_and_substitute below.
-    (_, dummies, rule) = rename_quant(forall(dummies, rule), rule.bound_variables())
+    quant = rename_quant(forall(dummies, rule), rule.bound_variables())
+    dummies = quant.get_variables(frozenset())
+    rule = quant[1]
 
     if has_head(rule, Implies):
         # For ==>, if we're working backwards from the conclusion, we see if we
@@ -236,7 +241,7 @@ def _recursive_match_and_substitute(
     target = cast(CompositeExpression, target)
 
     if has_head(target, Quantifier):
-        quant_vars = target.get_variables(set())
+        quant_vars = target.get_variables(frozenset())
         free_vars = antecedent.free_variables(set()).union(
             consequent.free_variables(set())
         )
@@ -257,7 +262,7 @@ def _recursive_match_and_substitute(
 
         if not free_vars.isdisjoint(quant_vars):
             target = rename_quant(target, free_vars)
-            quant_vars = target.get_variables(set())
+            quant_vars = target.get_variables(frozenset())
         assert free_vars.isdisjoint(quant_vars)
 
     for index, expr in enumerate(target):
@@ -281,12 +286,19 @@ def _substitute(
     # ForAll at the front?  e.g. if you want to apply P ^ Q ==> Q backwards,
     # you're introducing a P.
     if isinstance(expr, Node):
-        return subs.get(expr, expr)
+        # Kind of ugly that this is special case.  Not sure how to fix that
+        # though.
+        if isinstance(expr, Quantifier):
+            return expr.__class__(subs.get(v, v) for v in
+                                  expr.get_variables_tree(frozenset()))
+
+        return subs.get(cast(Variable, expr), expr)
 
     expr = cast(CompositeExpression, expr)
 
     # Actually, this does the wrong thing for quantifiers, since the quantified
-    # over variable shadows any instance in what we're trying to substitute.  Hmm
+    # over variable shadows any instance in what we're trying to substitute.
+    # Hmm.
     # Should I just disallow shadowing?
     return CompositeExpression([_substitute(subs, e) for e in expr])
 
@@ -317,9 +329,9 @@ def is_equality(expr: Expression) -> bool:
 
 
 def new_variable(old_variable: Variable, taken: Set[Variable]) -> Variable:
-    names = {t.name for t in taken}
+    taken_names = {t.name for t in taken}
     new_name = old_variable.name
-    while new_name in names:
+    while new_name in taken_names:
         new_name = "_" + new_name
     return var(new_name)
 
@@ -345,7 +357,8 @@ def rename_quant(
     return cast(CompositeExpression, _rename_variables(quant.get_variables(
         frozenset()), taken, quant))
 
-def _rename_variables(to_rename: Set['Variable'], taken: Set[Variable],
+
+def _rename_variables(to_rename: AbstractSet['Variable'], taken: Set[Variable],
                      expr: Expression) -> Expression:
     to_rename = taken.intersection(to_rename)
     if not to_rename:

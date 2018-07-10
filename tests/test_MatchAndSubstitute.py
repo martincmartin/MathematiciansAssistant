@@ -2,7 +2,7 @@ import unittest
 
 from MatchAndSubstitute import match, is_instance, is_rule, try_rule, Direction
 import Parser
-from Expression import var, sum_, num, forall
+from Expression import var, multiply, sum_, num, forall
 import typeguard
 
 A = var("A")
@@ -286,6 +286,19 @@ class TestTryRule(unittest.TestCase):
                 ex("a == b"), forall(a, ex("a + a == 2 * a")), Direction.FORWARD
             ),
             set(),
+        )
+
+    def test_free_variables_on_tuple(self):
+        self.assertEqual(
+            try_rule(
+                forall(a, ex("1 * a == a")),
+                forall((P, Q), ex("P == Q")),
+                Direction.FORWARD
+            ),
+            {multiply(num(1), forall((P, Q), ex('P == Q'))),
+                forall((P, Q), ex('1 * P == Q')),
+                forall((P, Q), ex('P == 1 * Q')),
+                forall((P, Q), ex('1 * (P == Q)'))}
         )
 
 

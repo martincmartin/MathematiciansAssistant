@@ -51,16 +51,16 @@ class TestRepr(unittest.TestCase):
         self.canonical("not (P and Q)")
 
     def test_forall(self):
-        self.assertEqual(repr(forall(P, ex("P ==> P"))), r"\forall(P, P ==> P)")
+        self.assertEqual(repr(forall(P, ex("P ==> P"))), r"\forall{P}(P ==> P)")
 
         self.assertEqual(
             repr(forall((P, Q), ex("P + Q == Q + P"))),
-            r"\forall((P, Q), P + Q == Q + P)",
+            r"\forall{P, Q}(P + Q == Q + P)",
         )
 
     def test_exists(self):
         self.assertEqual(
-            repr(exists(A, ex("A + A == A"))), r"\exists(A, A + A == A)"
+            repr(exists(A, ex("A + A == A"))), r"\exists{A}(A + A == A)"
         )
 
     def test_in(self):

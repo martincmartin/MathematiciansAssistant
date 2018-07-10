@@ -91,17 +91,51 @@ class Expression(abc.ABC):
     ) -> Set["Variable"]:
         """Returns the set of free variables in this (sub-)expression.
 
-        Free variables are the ones that are *not* covered by an forall or exists.  They're
-        value / semantics comes from outside the expression."""
+        Free variables are the ones that are *not* covered by an forall or
+        exists.  Their value / semantics comes from outside the
+        expression."""
         return set()
 
     def bound_variables(self) -> Set["Variable"]:
         """Returns the set of bound variables in this (sub-)expression.
 
-        Bound variables are any variables that are quantified over, either at the root or in any
-        subexpression of the root.  These are the set of variables that will shadow any value /
+        Bound variables are any variables that are quantified over, either at
+        the root or in any
+        subexpression of the root.  These are the set of variables that will
+        shadow any value /
         semantics from outside this expression."""
         raise NotImplementedError  # pragma: no cover
+
+    # NOTE: In f(x)(y), f(x) returns a function, which is then called with
+    # argument y.  So, f(x), a CompositeExpression, appears as the first
+    # child of another CompositeExpression.  So the _tree methods will be
+    # called on CompositeExpressions in that case.
+    def constructor_tree(self, args: Sequence["Expression"]):
+        pass
+
+    def repr_tree(self, args: Sequence['Expression']) -> Tuple[str, Precedence]:
+        return (
+            repr(self) + "(" + ", ".join([repr(arg) for arg in args]) + ")",
+            Precedence.FUNCALL,
+        )
+
+    def free_variables_tree(
+        self, args: Sequence['Expression'], exclude: Set["Variable"]
+    ) -> Set["Variable"]:
+        raise NotImplementedError  # pragma: no cover
+
+    def bound_variables_tree(self, args: Sequence['Expression']) -> Set[
+            'Variable']:
+        raise NotImplementedError  # pragma: no cover
+
+    def get_variables_tree(
+        self, other_dummies: FrozenSet["Variable"]
+    ) -> FrozenSet["Variable"]:
+        return frozenset()  # pragma: no cover
+
+    def declass(self):  # pragma: no cover
+        return self
+
 
 class Node(Expression):
     # Mathematica calls this an Atom.  In Mathematica, Head of a node is
@@ -121,11 +155,6 @@ class Node(Expression):
             repr(self) + "(" + ", ".join([repr(arg) for arg in args]) + ")",
             Precedence.FUNCALL,
         )
-
-    def get_variables_tree(
-        self, args: Sequence[Expression], other_dummies: Set["Variable"]
-    ) -> Iterable["Variable"]:
-        raise NotImplementedError  # pragma: no cover
 
     def free_variables_tree(
         self, args: Sequence[Expression], exclude: Set["Variable"]
@@ -147,9 +176,6 @@ class Node(Expression):
             for child in args
             for variable in child.bound_variables()
         }
-
-    def constructor_tree(self, args: Sequence[Expression]):
-        pass
 
     def __eq__(self, other) -> bool:
         return isinstance(self, type(other))
@@ -215,8 +241,8 @@ class CompositeExpression(Expression, Tuple[Expression, ...]):
     # inheritence here.  Oh well.
 
     # See https://stackoverflow.com/questions/50317506
-    def __new__(cls, *args, **kwargs):
-        return tuple.__new__(cls, *args, **kwargs)
+    def __new__(cls, iterable: Iterable[Expression]):
+        return tuple.__new__(cls, iterable)
 
     def __init__(self, iterable: Iterable[Expression]) -> None:
         super().__init__()
@@ -240,7 +266,7 @@ class CompositeExpression(Expression, Tuple[Expression, ...]):
         return [e.declass() for e in self]
 
     def free_variables(
-        self, exclude: AbstractSet[Variable]
+        self, exclude: Set[Variable]
     ) -> Set[Variable]:
         return self[0].free_variables_tree(self[1:], exclude)
 
@@ -248,11 +274,11 @@ class CompositeExpression(Expression, Tuple[Expression, ...]):
     # don't need the boilerplate here?
     def get_variables(
         self, other_dummies: FrozenSet[Variable]
-    ) -> Iterable[Variable]:
+    ) -> FrozenSet[Variable]:
         """Only defined for Quantifiers, gets the variables quantified over."""
-        return self[0].get_variables_tree(self[1:], other_dummies)
+        return self[0].get_variables_tree(other_dummies)
 
-    def constructor_tree(self) -> None:
+    def constructor_tree(self, args: Sequence[Expression]) -> None:
         """Called from __init__, allows methods to reject the tree."""
         pass
 
@@ -376,53 +402,65 @@ class Equal(Infix):
 
 
 class Quantifier(Node):
+    # Until we have a real type system, we want CompositeExpression to
+    # essentially be a function call, i.e. that the first child is the function,
+    # and the other children are the arguments.  And for now, we want all
+    # arguments to be of type "bool" (or proposition?) or "object",
+    # i.e. whatever quantifiers quantify over.  Which is a long way to say:
+    # when constructing a Quantifier, we don't want the list of arguments to
+    # include the variables quantified over, because those aren't
+    # subexpressions (of bool or object type).
+
+    _variables: Sequence[Variable]
+    _variables_set: FrozenSet[Variable]
+
+    def __init__(self, variables: Union[Iterable[Variable], Variable]):
+        if isinstance(variables, Variable):
+            self._variables = [variables]
+        else:
+            self._variables = list(variables)
+
+        self._variables_set = frozenset(self._variables)
 
     def get_variables_tree(
-        self, args: Sequence[Expression], other_dummies: Set[Variable]
-    ) -> Iterable[Variable]:
-        if isinstance(args[0], Node):
-            assert args[0] not in other_dummies
-            return {cast(Variable, args[0])}
-        else:
-            assert other_dummies.isdisjoint(args[0])
-            return args[0]
+        self, other_dummies: AbstractSet[Variable]
+    ) -> FrozenSet[Variable]:
+        assert other_dummies.isdisjoint(self._variables_set)
+        return self._variables_set
 
     def free_variables_tree(
-        self, args: Sequence[Expression], exclude: Set["Variable"]
+        self, args: Sequence[Expression], exclude: FrozenSet["Variable"]
     ) -> Set["Variable"]:
-        # If variable is already in `exclude`, it just shadows the outer one.  That's confusing, but not wrong.
-        exclude = exclude.union(self.get_variables_tree(args, set()))
+        # If variable is already in `exclude`, it just shadows the outer one.
+        # That's confusing, but not wrong.
+        exclude = exclude.union(self.get_variables_tree(frozenset()))
 
         return {
             variable
-            for child in args[1:]
+            for child in args
             for variable in child.free_variables(exclude)
         }
 
-    def bound_variables_tree(
-        self, args: Sequence[Expression]
-    ) -> Set["Variable"]:
+    def bound_variables_tree(self, args: Sequence[Expression]) -> Set[
+            'Variable']:
         return {
             variable
             for child in args[1:]
             for variable in child.bound_variables()
-        }.union(self.get_variables_tree(args, set()))
+        }.union(self.get_variables_tree(frozenset()))
 
     def constructor_tree(self, args: Sequence[Expression]) -> None:
-        assert args[1].bound_variables().isdisjoint(
-            self.get_variables_tree(args, set()))
+        assert args[0].bound_variables().isdisjoint(self._variables)
 
 
 class ForAll(Quantifier):
-
     def __repr__(self):
-        return r"\forall"
+        return r"\forall{"+", ".join(str(v) for v in self._variables)+"}"
 
 
 class Exists(Quantifier):
-
     def __repr__(self):
-        return r"\exists"
+        return r"\exists{"+", ".join(str(v) for v in self._variables)+"}"
 
 
 class ListLiteral(Node):
@@ -495,8 +533,6 @@ def makefn(clz: Type[Node], name=""):
 multiply = makefn(Multiply)
 sum_ = makefn(Sum)
 equal = makefn(Equal)
-forall = makefn(ForAll)
-exists = makefn(Exists)
 implies = makefn(Implies)
 equivalent = makefn(Equivalent)
 element = makefn(Element)
@@ -521,3 +557,11 @@ def in_(left, right):
 
 def num(value: NumberT) -> NumberLiteral:
     return NumberLiteral(value)
+
+
+def forall(variables: Union[Iterable[Variable], Variable], expr: Expression):
+    return CompositeExpression([ForAll(variables), expr])
+
+
+def exists(variables: Union[Iterable[Variable], Variable], expr: Expression):
+    return CompositeExpression([Exists(variables), expr])
