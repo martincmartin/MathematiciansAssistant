@@ -34,9 +34,9 @@ from Expression import Expression, CompositeExpression, var, forall
 
 import DeductionApril2018
 
-import typeguard
+import sys
 
-import cProfile
+import typeguard
 
 from typing import Sequence
 
@@ -221,8 +221,8 @@ def doit() -> None:
     helper_0_1_1(ex("X == [0 1; 1 0]"))
 
 
-#doit()
-#sys.exit(0)
+# doit()
+# sys.exit(0)
 
 if __name__ == "__main__":
     with typeguard.TypeChecker(

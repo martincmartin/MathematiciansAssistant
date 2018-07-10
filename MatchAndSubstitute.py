@@ -95,7 +95,8 @@ def is_rule(expr: Expression) -> bool:
 
 
 def is_instance(
-    expr: Expression, rule: Expression, dummies: FrozenSet[Variable] = set()
+    expr: Expression, rule: Expression, dummies: FrozenSet[Variable] =
+        frozenset()
 ) -> Optional[Mapping[Variable, Expression]]:
     """Determines whether 'expr' is an instance of 'rule.'
 
@@ -177,8 +178,10 @@ def _try_rule_recursive(
         if not dummies.isdisjoint(bound_in_target):
             # Should I rename dummies, or target?  Dummies
             # is probably less disruptive.
-            (_, dummies, rule) = rename_quant(forall(dummies, rule),
-                                              bound_in_target)
+            temp = rename_quant(forall(dummies, rule),
+                        bound_in_target)
+            dummies = temp.get_variables(frozenset())
+            rule = temp[1]
 
         return _recursive_match_and_substitute(
             dummies, rule[2], rule[1], target
