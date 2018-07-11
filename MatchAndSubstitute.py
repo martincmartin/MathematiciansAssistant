@@ -127,9 +127,6 @@ def try_rule(
 
     Returns a possibly empty set() of transformed expressions.
     """
-    if str(rule) == "P * M == M * P":
-        print("OMG")
-
     return _try_rule_recursive(frozenset(), rule, target, direction)
 
 

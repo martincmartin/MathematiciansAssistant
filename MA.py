@@ -159,7 +159,7 @@ def doit() -> None:
     # Dummit and Foote, problem 0.1.1:
     print("\n\n**********  Problem 0.1.1")
     # "Let A bet the set of 2 x 2 matrices with real number entries."
-    # "Determine which of the following elements of A line in B:
+    # "Determine which of the following elements of A lie in B:
     # [1 1; 0 1]   [1 1; 1 1]   [0 0; 0 0]   [1 1; 1 0]   [1 0; 0 1]   [0 1; 1 0]
 
     mat_mult = forall(
@@ -221,8 +221,8 @@ def doit() -> None:
     helper_0_1_1(ex("X == [0 1; 1 0]"))
 
 
-# doit()
-# sys.exit(0)
+doit()
+sys.exit(0)
 
 if __name__ == "__main__":
     with typeguard.TypeChecker(
