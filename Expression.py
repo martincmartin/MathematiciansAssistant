@@ -452,6 +452,13 @@ class Quantifier(Node):
     def constructor_tree(self, args: Sequence[Expression]) -> None:
         assert args[0].bound_variables().isdisjoint(self._variables)
 
+    def __eq__(self, other) -> bool:
+        return type(self) == type(other) and self._variables_set == \
+               other._variables_set
+
+    def __hash__(self):
+        return hash( (type(self), self._variables_set) )
+
 
 class ForAll(Quantifier):
     def __repr__(self):

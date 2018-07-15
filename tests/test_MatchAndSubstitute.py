@@ -1,6 +1,7 @@
 import unittest
 
-from MatchAndSubstitute import match, is_instance, is_rule, try_rule, Direction
+from MatchAndSubstitute import match, is_instance, is_rule, try_rule, \
+    Direction, rename_quant
 import Parser
 from Expression import var, multiply, sum_, num, forall
 import typeguard
@@ -8,11 +9,14 @@ import typeguard
 A = var("A")
 B = var("B")
 M = var("M")
+
 P = var("P")
+_P = var("_P")
 Q = var("Q")
 R = var("R")
 
 a = var("a")
+_a = var("_a")
 b = var("b")
 c = var("c")
 d = var("d")
@@ -74,7 +78,7 @@ class TestIsInstance(unittest.TestCase):
             is_instance(
                 ex("M * P + M * Q == M * P + M * Q"),
                 forall(A, ex("A == A")),
-                set(),
+                frozenset(),
             ),
             {A: ex("M * P + M * Q")},
         )
@@ -87,6 +91,30 @@ class TestIsInstance(unittest.TestCase):
             ),
             {A: P, B: Q, M: M},
         )
+
+
+class TestRenameQuant(unittest.TestCase):
+
+    def test_eq_bound_variable(self):
+        '''Test that equality takes the name of the bound variable into
+        account.
+
+        The variables that we quantify over are a special case in the code.
+        When first changed to a special case, I didn't implement __eq__ on
+        Quantifier.  So, TestRenameQuant.test_simple didn't test that
+        Quantifier._variables were renamed, only that the child expression
+        was renamed.
+        '''
+        self.assertNotEqual(forall(var('_a'), ex('a + 0 == a')),
+                            forall(var('a'), ex('a + 0 == a')))
+
+        self.assertEqual(forall(var('a'), ex('a + 0 == a')),
+                         forall(var('a'), ex('a + 0 == a')))
+
+    def test_simple(self):
+        self.assertEqual(rename_quant(forall(a, ex('a + 0 == a')),
+                                      {a, b}),
+                         forall(var('_a'), ex('_a + 0 == _a')))
 
 
 class TestIsRule(unittest.TestCase):
@@ -209,7 +237,7 @@ class TestTryRule(unittest.TestCase):
             ),
             {
                 ex("Q * M == M * Q"),
-                ex("P + (M * P + Q * M) == P + (M * P + M * Q)"),
+                forall(_P, ex("_P + (M * P + Q * M) == _P + (M * P + M * Q)")),
             },
         )
 
@@ -244,16 +272,15 @@ class TestTryRule(unittest.TestCase):
         )
 
     def test_only_match_boolean(self):
+        # What, exactly, is this test supposed to be testing?
         self.assertEqual(
             try_rule(
-                forall((P,), ex("P and P <==> P")),
+                forall((P, Q), ex("P and Q <==> Q and P")),
                 ex("A and B"),
                 Direction.BACKWARD,
-            ),  # backwards
+            ),
             {
-                ex("(A and A) and B"),
-                ex("(A and B) and (A and B)"),
-                ex("A and (B and B)"),
+                ex("B and A"),
             },
         )
 
@@ -289,16 +316,32 @@ class TestTryRule(unittest.TestCase):
         )
 
     def test_free_variables_on_tuple(self):
+        # What's the bug this is trying to test for?  I should really
+        # document that from now on.
         self.assertEqual(
             try_rule(
                 forall(a, ex("1 * a == a")),
-                forall((P, Q), ex("P == Q")),
+                forall((P, Q), ex("1 * P == Q")),
                 Direction.FORWARD
             ),
-            {multiply(num(1), forall((P, Q), ex('P == Q'))),
-                forall((P, Q), ex('1 * P == Q')),
-                forall((P, Q), ex('P == 1 * Q')),
-                forall((P, Q), ex('1 * (P == Q)'))}
+            {forall((P, Q), ex('P == Q'))},
+        )
+
+    def test_rename(self):
+        """Test quantifier applied to quantifier, with the same var name.
+
+        """
+        self.assertEqual(
+            try_rule(
+                forall(a, ex('0 * a == 0')),
+                forall(a, ex('0 * a == 0')),
+                Direction.FORWARD
+            ),
+            {
+                forall((a, _a), ex('(0 * _a) * a == 0')),
+                forall((a, _a), ex('0 * a == 0 * _a')),
+                ex('0 == 0'),
+            },
         )
 
 
