@@ -22,7 +22,7 @@
 # foundation for the logic / proof side of what I want to do.  And I like OCaml
 # better as a language than Python.  Oh well.
 #
-# A Google search confirms there's no theorm proving library for Sage, and no
+# A Google search confirms there's no theorem proving library for Sage, and no
 # interface to call Coq.  I suppose I could always call into Coq from Sage?
 # Recreating Coq in Sage would be fun, but seems like a lot of busy work,
 # and wouldn't incorporate any improvements done to Coq.
@@ -36,9 +36,21 @@ import DeductionApril2018
 
 import sys
 
-import typeguard
+# import typeguard
 
 from typing import Sequence
+
+"""Next step: a little high school algebra.
+It starts with two operators, + and *, and numbers (i.e. integers).
+Those can always be "collapsed" down to a single number.  So, by themselves, \
+                                                                 not very 
+interesting."""
+
+"""The next step is to add a single variable, say x.  Now what can you do?
+If you have arbitrary expressions formed from num, x, + and *, you end up
+with arbitrary polynomials of a single variable.  A good strategy to \
+        understand them is to work only with first order polynomials, and see\
+        how far you can go with those."""
 
 
 def ex(st: str) -> Expression:
@@ -326,3 +338,12 @@ if __name__ == "__main__":
 # house of cards, e.g. a rule X == X + 0 could get applied to an X
 # that happens to be boolean, or P and Q ==> P to a matrix.  I'll need
 # types before long.  How best to implement them?
+
+############
+# Earliest exercises
+#
+# Apparently "Algebra 1: Concepts and Skills" is a recommended high school
+# algebra textbook.  It can be found at
+# www.mathacademicexcellence.com/Material_Algebra1.pdf .  It starts with
+# substitution and simplification, e.g. "when y = 2, 10/y = 10/2 = 5" or "5 *
+#  y == 5 * 2 == 10."

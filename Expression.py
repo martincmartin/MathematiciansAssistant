@@ -19,6 +19,11 @@
 #   proof though, a tree rather than a list.  More specific is that the proof is
 #   minimal, or near minimal, or doesn't have any obviously uneeded steps, etc.
 
+# Check out SymPy, although it doesn't seem to have symbolic logic.  And 
+# maybe ' \
+#                                   'it forms the core of Sage?'
+
+
 from enum import Enum, unique
 from functools import total_ordering
 
