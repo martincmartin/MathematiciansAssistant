@@ -14,7 +14,7 @@
 #   context and context_rules, and partition based on is_rule.
 # - Add more types.
 
-# - Have unit (integration?) tests for the theorm prover.  Most general is that
+# - Have unit (integration?) tests for the theorem prover.  Most general is that
 #   each step is logically valid.  We'd need a better representation of the
 #   proof though, a tree rather than a list.  More specific is that the proof is
 #   minimal, or near minimal, or doesn't have any obviously uneeded steps, etc.
@@ -23,6 +23,8 @@
 # maybe ' \
 #                                   'it forms the core of Sage?'
 
+
+from __future__ import annotations
 
 from enum import Enum, unique
 from functools import total_ordering
@@ -125,7 +127,7 @@ class Expression(abc.ABC):
         )
 
     def free_variables_tree(
-        self, args: Sequence['Expression'], exclude: Set["Variable"]
+        self, args: Sequence['Expression'], exclude: AbstractSet["Variable"]
     ) -> Set["Variable"]:
         raise NotImplementedError  # pragma: no cover
 
@@ -162,7 +164,7 @@ class Node(Expression):
         )
 
     def free_variables_tree(
-        self, args: Sequence[Expression], exclude: Set["Variable"]
+        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
     ) -> Set["Variable"]:
         return {
             variable
@@ -241,9 +243,11 @@ class CompositeExpression(Expression, Tuple[Expression, ...]):
     # composite expression with head List.
 
     # Inheriting from tuple means we can't modify the arguments
-    # in the constructor, e.g. to rename variables to avoid shadowing.
+    # in the constructor, e.g. to rename variables to avoid shadowing.  And
+    # Expression gives us a different definition of __add__ and __mul__,
+    # which mypy complains about.
     # So we should probably be using composition instead of
-    # inheritence here.  Oh well.
+    # inheritance here.  Oh well.
 
     # See https://stackoverflow.com/questions/50317506
     def __new__(cls, iterable: Iterable[Expression]):
@@ -264,14 +268,14 @@ class CompositeExpression(Expression, Tuple[Expression, ...]):
         return self[0].repr_tree(self[1:])
 
     # Call pprint.pprint() on result.
-    def declass(self):  # pragma: no cover
+    def declass(self) -> List[Expression]:  # pragma: no cover
         """Intended for debugging, shows the structure of the tree, even for
         invalid trees.
         """
         return [e.declass() for e in self]
 
     def free_variables(
-        self, exclude: Set[Variable]
+        self, exclude: AbstractSet[Variable]
     ) -> Set[Variable]:
         return self[0].free_variables_tree(self[1:], exclude)
 
@@ -434,11 +438,12 @@ class Quantifier(Node):
         return self._variables_set
 
     def free_variables_tree(
-        self, args: Sequence[Expression], exclude: FrozenSet["Variable"]
+        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
     ) -> Set["Variable"]:
         # If variable is already in `exclude`, it just shadows the outer one.
         # That's confusing, but not wrong.
-        exclude = exclude.union(self.get_variables_tree(frozenset()))
+        # "|" is python for union().
+        exclude = exclude | self.get_variables_tree(frozenset())
 
         return {
             variable

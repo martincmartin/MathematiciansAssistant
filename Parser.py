@@ -37,16 +37,18 @@ class Parser:
     }
 
     def __init__(self, input_str: str) -> None:
+        print('*'+input_str+"*")
         self.type = None
         self.token = None
 
         # We want to peek ahead, and all our input strings should be small
         # anyway, so just turn the generator into a list.
         tokens = list(tokenize(io.BytesIO(input_str.encode("utf-8")).readline))
+        print('**'+repr(tokens)+'**')
         self.tokens = []
         skip = 0
         for index, tok in enumerate(tokens):
-            if tok.exact_type == ENCODING:
+            if tok.exact_type == ENCODING or tok.exact_type == NEWLINE:
                 continue
 
             if skip > 0:
