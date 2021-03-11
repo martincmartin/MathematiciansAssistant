@@ -6,6 +6,9 @@
     <Python>
       <option name="NEW_LINE_AFTER_COLON" value="true" />
     </Python>
+    <codeStyleSettings language="JSON">
+      <option name="WRAP_LONG_LINES" value="true" />
+    </codeStyleSettings>
     <codeStyleSettings language="Python">
       <option name="WRAP_LONG_LINES" value="true" />
       <option name="WRAP_ON_TYPING" value="1" />
