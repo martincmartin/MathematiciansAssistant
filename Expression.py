@@ -1,8 +1,6 @@
 # Notes in google docs, "How do you discover / learn algebra?"
 
 # Possible yak shaving tasks:
-# - Get rid of Quantifier's _variables.  It's redundant with
-#     _variables_map.items().
 # - Implement more operators, including parsing & printing.
 # - Implement integer literals, including parsing & printing.
 # - DRY the parser, at least the Infix part.
@@ -465,9 +463,6 @@ class Quantifier(Node):
     # include the variables quantified over, because those aren't
     # subexpressions (of bool or object type).
 
-    # Do we need _variables?  dicts now keep entries in insertion order,
-    # so _variables should just be _variables_map.items().
-    _variables: Sequence[(Variable, ExpressionType)]
     _variables_map: Mapping[Variable, ExpressionType]
 
     def __init__(self,
@@ -478,11 +473,7 @@ class Quantifier(Node):
         # Variable names must be unique.
         assert len({variable for variable, typ in variables}) == len(variables)
 
-        self._variables = list(variables)
-
-        self._variables_map = dict(self._variables)
-
-        assert self._variables == list(self._variables_map.items())
+        self._variables_map = dict(variables)
 
     def type(self) -> ExpressionType:
         return ExpressionType.PROPOSITION

@@ -106,8 +106,8 @@ class TestRenameQuantified(unittest.TestCase):
         The variables that we quantify over are a special case in the code.
         When first changed to a special case, I didn't implement __eq__ on
         Quantifier.  So, TestRenameQuant.test_simple didn't test that
-        Quantifier._variables were renamed, only that the child expression
-        was renamed.
+        Quantifier._variables_map.keys() were renamed, only that the child
+        expression was renamed.
         """
         self.assertNotEqual(forall(_a, ex('a + 0 == a')),
                             forall(a, ex('a + 0 == a')))
