@@ -1,6 +1,6 @@
 from Expression import Expression, CompositeExpression, has_head, Equal
 from MatchAndSubstitute import Direction, is_equality
-from DeductionHelpers import ExprAndParent, Exprs, ProofState
+from ProofSystem import ExprAndParent, Exprs, ProofState
 
 from typing import Sequence, List
 from typing import cast

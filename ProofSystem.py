@@ -1,4 +1,18 @@
-"""Basic deduction functions used by most / all search techniques.
+"""A proof assistant, or interactive theorem prover.  This implements the
+sequent calculus, including maintaining proof state such as context (the set
+of symbols to the left of the turnstile) and goals.
+
+Actually, I think the sequent calculus is implemented in MatchAndSubstitute's
+try_rule(), along with some rules.  Hmm.  For example, "forall P, Q, P & Q -> P"
+could be a rule, although that's a second order logic rule I think.
+
+So in Hilbert-style deductive systems, it is common to have only modus ponens
+and universal generalization as rules of inference, however, you then have
+axiom schemas that encompass the rest of propositional logic.  Coq has
+tactics like "split" for conjunction goals, and "left" and "right" for
+disjunction goals.
+
+Basic deduction functions used by most / all search techniques.
 
 This file contains basic stuff that should be independent of any
 particular search technique.
@@ -139,10 +153,12 @@ class Exprs(Mapping[Expression, EAndP]):
 # Why do Exprs and ProofState both have parents?  I think they must point to
 # the same thing, i.e. ProofState._parent.context == ProofState.context._parent.
 
-
 class ProofState:
     goals: Exprs[EAndP]
     context: Exprs[EAndP]
+    # This really needs to be a list, mapping variable to expression that
+    # defines it.
+    definitions: Exprs[EAndP]
     _parent: Optional["ProofState"]
     verbosity: int
 

@@ -44,7 +44,7 @@ class Parser:
         # We want to peek ahead, and all our input strings should be small
         # anyway, so just turn the generator into a list.
         tokens = list(tokenize(io.BytesIO(input_str.encode("utf-8")).readline))
-        print('**'+repr(tokens)+'**')
+        # print('**'+repr(tokens)+'**')
         self.tokens = []
         skip = 0
         for index, tok in enumerate(tokens):

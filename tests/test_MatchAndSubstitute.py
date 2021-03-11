@@ -1,10 +1,10 @@
 import unittest
 
 from MatchAndSubstitute import match, is_instance, is_rule, try_rule, \
-    Direction, rename_quant
+    Direction, rename_quantified
 import Parser
-from Expression import var, multiply, sum_, num, forall
-import typeguard
+from Expression import var, sum_, num, forall, ExpressionType
+# import typeguard
 
 A = var("A")
 B = var("B")
@@ -31,42 +31,46 @@ def ex(string):
     return Parser.parse(string)
 
 
+ANY = ExpressionType.ANY
+
+
 class TestMatch(unittest.TestCase):
 
     def test_node(self):
-        self.assertEqual(match({P}, P, P + Q), {P: (P + Q)})
+        self.assertEqual(match({P: ANY}, P, P + Q), {P: (P + Q)})
 
     def test_sum(self):
-        self.assertEqual(match({P}, P + B, Q + B), {P: Q})
+        self.assertEqual(match({P: ANY}, P + B, Q + B), {P: Q})
 
     def test_different_root(self):
-        self.assertIsNone(match(set(), P + Q, P * Q))
+        self.assertIsNone(match({}, P + Q, P * Q))
 
     def test_different_len(self):
-        self.assertIsNone(match(set(), P + Q, sum_(P, Q, A)))
+        self.assertIsNone(match({}, P + Q, sum_(P, Q, A)))
 
     def test_simple(self):
         self.assertEqual(
-            match({P}, ex("P in B"), ex("P + Q in B")), {P: (P + Q)}
+            match({P: ANY}, ex("P in B"), ex("P + Q in B")), {P: (P + Q)}
         )
 
     def test_dummy_appears_twice(self):
         self.assertEqual(
-            match({P}, ex("P in P"), ex("P + Q in P + Q")), {P: (P + Q)}
+            match({P: ANY}, ex("P in P"), ex("P + Q in P + Q")), {P: (P + Q)}
         )
 
     def test_dummy_appears_twice2(self):
-        self.assertIsNone(match({P}, ex("P in P"), ex("P + Q in P + B")))
+        self.assertIsNone(match({P: ANY}, ex("P in P"), ex("P + Q in P + B")))
 
     def test_two_dummies(self):
-        self.assertEqual(match({P, Q}, P + Q, A + B), {P: A, Q: B})
+        self.assertEqual(match({P: ANY, Q: ANY}, P + Q, A + B), {P: A, Q: B})
 
     def test_number_literal(self):
-        self.assertEqual(match({a}, a, num(1)), {a: num(1)})
+        self.assertEqual(match({a: ANY}, a, num(1)), {a: num(1)})
 
     def test_matrix_literal(self):
         self.assertEqual(
-            match({a, b, c, d}, ex("[a b; c d]"), ex("[1 2; 3 4]")),
+            match({a: ANY, b: ANY, c: ANY, d: ANY},
+                  ex("[a b; c d]"), ex("[1 2; 3 4]")),
             {a: num(1), b: num(2), c: num(3), d: num(4)},
         )
 
@@ -78,7 +82,7 @@ class TestIsInstance(unittest.TestCase):
             is_instance(
                 ex("M * P + M * Q == M * P + M * Q"),
                 forall(A, ex("A == A")),
-                frozenset(),
+                {},
             ),
             {A: ex("M * P + M * Q")},
         )
@@ -93,10 +97,10 @@ class TestIsInstance(unittest.TestCase):
         )
 
 
-class TestRenameQuant(unittest.TestCase):
+class TestRenameQuantified(unittest.TestCase):
 
     def test_eq_bound_variable(self):
-        '''Test that equality takes the name of the bound variable into
+        """Test that equality takes the name of the bound variable into
         account.
 
         The variables that we quantify over are a special case in the code.
@@ -104,17 +108,29 @@ class TestRenameQuant(unittest.TestCase):
         Quantifier.  So, TestRenameQuant.test_simple didn't test that
         Quantifier._variables were renamed, only that the child expression
         was renamed.
-        '''
-        self.assertNotEqual(forall(var('_a'), ex('a + 0 == a')),
-                            forall(var('a'), ex('a + 0 == a')))
+        """
+        self.assertNotEqual(forall(_a, ex('a + 0 == a')),
+                            forall(a, ex('a + 0 == a')))
 
-        self.assertEqual(forall(var('a'), ex('a + 0 == a')),
-                         forall(var('a'), ex('a + 0 == a')))
+        self.assertEqual(forall(a, ex('a + 0 == a')),
+                         forall(a, ex('a + 0 == a')))
 
     def test_simple(self):
-        self.assertEqual(rename_quant(forall(a, ex('a + 0 == a')),
-                                      {a, b}),
-                         forall(var('_a'), ex('_a + 0 == _a')))
+        self.assertEqual(
+            forall(_a, ex('_a + 0 == _a')),
+            rename_quantified(forall(a, ex('a + 0 == a')), {a, b}))
+
+    def test_overlapping(self):
+        self.assertEqual(
+            forall((var('__a'), _a), ex('_a * __a == 0')),
+            rename_quantified(forall((a, _a), ex('_a * a == 0')),
+                              {a, M}))
+
+    def test_hmm(self):
+        self.assertEqual(
+            forall((var('__a'), var('___a')), ex("___a * __a == 0")),
+            rename_quantified(forall((a, _a), ex('_a * a == 0')),
+                              {a, _a}))
 
 
 class TestIsRule(unittest.TestCase):
@@ -344,7 +360,17 @@ class TestTryRule(unittest.TestCase):
             },
         )
 
+    def test_name_collision(self):
+        self.assertEqual(
+            try_rule(
+                forall((a, _a), ex("_a * a == 0")),
+                forall(a, ex("M == a")),
+                Direction.FORWARD),
+            frozenset()
+        )
+
 
 if __name__ == "__main__":
-    with typeguard.TypeChecker(["MatchAndSubstitute", "Expression", "Parser"]):
-        unittest.main()
+    # with typeguard.TypeChecker(["MatchAndSubstitute", "Expression",
+    # "Parser"]):
+    unittest.main()

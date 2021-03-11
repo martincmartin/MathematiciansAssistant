@@ -1,6 +1,8 @@
 # Notes in google docs, "How do you discover / learn algebra?"
 
 # Possible yak shaving tasks:
+# - Get rid of Quantifier's _variables.  It's redundant with
+#     _variables_map.items().
 # - Implement more operators, including parsing & printing.
 # - Implement integer literals, including parsing & printing.
 # - DRY the parser, at least the Infix part.
@@ -17,26 +19,53 @@
 # - Have unit (integration?) tests for the theorem prover.  Most general is that
 #   each step is logically valid.  We'd need a better representation of the
 #   proof though, a tree rather than a list.  More specific is that the proof is
-#   minimal, or near minimal, or doesn't have any obviously uneeded steps, etc.
+#   minimal, or near minimal, or doesn't have any obviously unneeded steps, etc.
 
 # Check out SymPy, although it doesn't seem to have symbolic logic.  And 
-# maybe ' \
-#                                   'it forms the core of Sage?'
+# maybe 'it forms the core of Sage?'
 
+# **********  Python types for Sets  **********
+#
+# This is super confusing and keeps changing.
+#
+# tl;dr:
+#
+# from __future__ import annotations
+#
+# Use collections.abc.Set (for immutable) or
+# collections.abc.MutableSet.  Note that if frozenset fails type checking
+# when passed to a function expecting Set, you're probably using typing.Set
+# instead of collections.abc.Set.  Don't do "from typing import *" anymore.
+#
+# Check out the second answer here:
+# https://stackoverflow.com/questions/35907309/what-are-the-differences-between-set-frozenset-mutableset-and-abstractset-in-p
+#
+# Don't use:
+# typing.AbstractSet (use collections.abc.Set instead.)
+# typing.MutableSet (use collections.abc.MutableSet instead.)
+# typing.Set (use builtins.set instead.)
+# typing.FrozenSet (use builtins.frozenset instead.)
+#
 
 from __future__ import annotations
 
+import abc
+import builtins
 from enum import Enum, unique
 from functools import total_ordering
 
-# from pprint import pprint
-# from abc import abstractmethod
-import abc
-
-# from collections import Hashable
-from typing import *
+from typing import Union, cast
+from collections.abc import Sequence, Set, Iterable, Hashable, Mapping, \
+    Collection
 
 NumberT = Union[float, int]
+
+
+class ExpressionType(Enum):
+    ANY = 1
+    NUMBER_LITERAL = 2
+    OBJECT = 3  # https://en.wikipedia.org/wiki/Mathematical_object
+    PROPOSITION = 4
 
 
 @total_ordering
@@ -64,13 +93,13 @@ class Precedence(Enum):
 class Expression(abc.ABC):
     # We should consider getting rid of __mul__ and __add__.  They're used in
     # unit tests of the parser, but would be easy to replace with functions.
-    def __mul__(self, rhs: "Expression") -> "CompositeExpression":
+    def __mul__(self, rhs: Expression) -> "CompositeExpression":
         return CompositeExpression([Multiply(), self, rhs])
 
     # "+" already means "concatenate" for lists.  But concatenating
     # argument lists seems much rarer than constructing expressions
     # using "+", especially in abstract algebra.
-    def __add__(self, rhs: "Expression") -> "CompositeExpression":
+    def __add__(self, rhs: Expression) -> "CompositeExpression":
         return CompositeExpression([Sum(), self, rhs])
 
     # I considered doing the Sage thing and overriding __eq__ and other "rich
@@ -87,30 +116,38 @@ class Expression(abc.ABC):
     # and <==>
 
     @abc.abstractmethod
-    def repr_and_precedence(self) -> Tuple[str, Precedence]:
+    def repr_and_precedence(self) -> tuple[str, Precedence]:
         raise NotImplementedError  # pragma: no cover
 
     def __repr__(self) -> str:
         return self.repr_and_precedence()[0]
 
-    def free_variables(
-        self, exclude: AbstractSet["Variable"]
-    ) -> Set["Variable"]:
+    @abc.abstractmethod
+    def type(self) -> ExpressionType:
+        raise NotImplementedError  # pragma: nocover
+
+    def free_variables(self, exclude: Set["Variable"]) -> \
+            Set["Variable"]:
         """Returns the set of free variables in this (sub-)expression.
 
         Free variables are the ones that are *not* covered by an forall or
         exists.  Their value / semantics comes from outside the
         expression."""
-        return set()
+        return frozenset()
 
-    def bound_variables(self) -> Set["Variable"]:
+    def bound_variables(self) -> Set[Variable]:
         """Returns the set of bound variables in this (sub-)expression.
 
         Bound variables are any variables that are quantified over, either at
-        the root or in any
-        subexpression of the root.  These are the set of variables that will
-        shadow any value /
-        semantics from outside this expression."""
+        the root or in any subexpression of the root.  These are the set of
+        variables that will shadow any value / semantics from outside this
+        expression.
+
+        A variable may be bound more than once, with a different type in
+        different instances.  So we just return the Variable, rather than the
+        types.  This function is only used to find variables that need to be
+        renamed to avoid collision, we don't use the type anyway.
+        """
         raise NotImplementedError  # pragma: no cover
 
     # NOTE: In f(x)(y), f(x) returns a function, which is then called with
@@ -120,31 +157,31 @@ class Expression(abc.ABC):
     def constructor_tree(self, args: Sequence["Expression"]):
         pass
 
-    def repr_tree(self, args: Sequence['Expression']) -> Tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence['Expression']) -> tuple[str, Precedence]:
         return (
             repr(self) + "(" + ", ".join([repr(arg) for arg in args]) + ")",
             Precedence.FUNCALL,
         )
 
     def free_variables_tree(
-        self, args: Sequence['Expression'], exclude: AbstractSet["Variable"]
+            self, args: Sequence['Expression'], exclude: Set["Variable"]
     ) -> Set["Variable"]:
         raise NotImplementedError  # pragma: no cover
 
-    def bound_variables_tree(self, args: Sequence['Expression']) -> Set[
-            'Variable']:
+    def bound_variables_tree(self, args: Sequence['Expression']) -> \
+            Set[Variable]:
         raise NotImplementedError  # pragma: no cover
 
     def get_variables_tree(
-        self, other_dummies: FrozenSet["Variable"]
-    ) -> FrozenSet["Variable"]:
-        return frozenset()  # pragma: no cover
+            self, other_dummies: Mapping[Variable, ExpressionType]
+    ) -> Mapping[Variable, ExpressionType]:
+        return {}  # pragma: no cover
 
     def declass(self):  # pragma: no cover
         return self
 
 
-class Node(Expression):
+class Node(Expression, abc.ABC):
     # Mathematica calls this an Atom.  In Mathematica, Head of a node is
     # its type.  Seems non-orthogonal.
 
@@ -153,18 +190,18 @@ class Node(Expression):
     #  here.  Could also use a mix-in I suppose.
     _precedence: Precedence
 
-    def repr_and_precedence(self) -> Tuple[str, Precedence]:
+    def repr_and_precedence(self) -> tuple[str, Precedence]:
         return repr(self), Precedence.ATOM
 
     # Currently, our parser can't generate these.
-    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence[Expression]) -> tuple[str, Precedence]:
         return (
             repr(self) + "(" + ", ".join([repr(arg) for arg in args]) + ")",
             Precedence.FUNCALL,
         )
 
     def free_variables_tree(
-        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
+            self, args: Sequence[Expression], exclude: Set["Variable"]
     ) -> Set["Variable"]:
         return {
             variable
@@ -172,17 +209,13 @@ class Node(Expression):
             for variable in child.free_variables(exclude)
         }
 
-    def bound_variables(self) -> Set["Variable"]:
-        return set()
+    def bound_variables(self) -> Set[Variable]:
+        return frozenset()
 
     def bound_variables_tree(
-        self, args: Sequence[Expression]
-    ) -> Set["Variable"]:
-        return {
-            variable
-            for child in args
-            for variable in child.bound_variables()
-        }
+            self, args: Sequence[Expression]
+    ) -> Set[Variable]:
+        return frozenset().union(*(child.bound_variables() for child in args))
 
     def __eq__(self, other) -> bool:
         return isinstance(self, type(other))
@@ -208,7 +241,7 @@ class Node(Expression):
 class Variable(Node):
     _name: str
 
-    def __init__(self, name: str)->None:
+    def __init__(self, name: str) -> None:
         self._name = name
 
     @property
@@ -224,19 +257,23 @@ class Variable(Node):
     def __hash__(self):
         return hash(self._name)
 
+    def type(self):
+        # TODO: these needs types, even when leaves of expressions, e.g. in
+        # x + y, x and y are both math objects, not propositions, whereas in
+        # p and q, they're both propositions, not math objects.
+        return ExpressionType.ANY
+
     def declass(self):  # pragma: no cover
         return self._name
 
-    def free_variables(
-        self, exclude: AbstractSet["Variable"]
-    ) -> Set["Variable"]:
+    def free_variables(self, exclude: Set["Variable"]) -> Set["Variable"]:
         if self in exclude:
             return set()
         else:
             return {self}
 
 
-class CompositeExpression(Expression, Tuple[Expression, ...]):
+class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
     # We need a shorter name for this.  Just "Composite"?  That
     # collides with the name for non-prime numbers.  "Internal"?
     # "Tree"?  "Cons"?  "Cells"?  "List"?  In Mathematica, a list is a
@@ -255,35 +292,33 @@ class CompositeExpression(Expression, Tuple[Expression, ...]):
 
     def __init__(self, iterable: Iterable[Expression]) -> None:
         super().__init__()
-        for it in iterable:
-            assert isinstance(it, Hashable)
         assert all(isinstance(it, Hashable) for it in iterable)
         children = list(iterable)
         assert len(children) > 0
         children[0].constructor_tree(children[1:])
 
     # I'm using inheritance instead of composition.  Oh well.
-    def repr_and_precedence(self) -> Tuple[str, Precedence]:
+    def repr_and_precedence(self) -> tuple[str, Precedence]:
         assert len(self) > 0
         return self[0].repr_tree(self[1:])
 
+    def type(self) -> ExpressionType:
+        return self[0].type()
+
     # Call pprint.pprint() on result.
-    def declass(self) -> List[Expression]:  # pragma: no cover
+    def declass(self) -> list[Expression]:  # pragma: no cover
         """Intended for debugging, shows the structure of the tree, even for
         invalid trees.
         """
         return [e.declass() for e in self]
 
-    def free_variables(
-        self, exclude: AbstractSet[Variable]
-    ) -> Set[Variable]:
+    def free_variables(self, exclude: Set[Variable]) -> Set[Variable]:
         return self[0].free_variables_tree(self[1:], exclude)
 
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
-    def get_variables(
-        self, other_dummies: FrozenSet[Variable]
-    ) -> FrozenSet[Variable]:
+    def get_variables(self, other_dummies: Mapping[Variable, ExpressionType]
+                      ) -> Mapping[Variable, ExpressionType]:
         """Only defined for Quantifiers, gets the variables quantified over."""
         return self[0].get_variables_tree(other_dummies)
 
@@ -291,7 +326,7 @@ class CompositeExpression(Expression, Tuple[Expression, ...]):
         """Called from __init__, allows methods to reject the tree."""
         pass
 
-    def bound_variables(self) -> Set["Variable"]:
+    def bound_variables(self) -> Set[Variable]:
         return self[0].bound_variables_tree(self[1:])
 
 
@@ -309,14 +344,17 @@ class Infix(Node):
     _name: str
     _name_with_spaces: str
     _precedence: Precedence
+    _type: ExpressionType
 
-    def __init__(self, name: str, precedence: Precedence) -> None:
+    def __init__(self, name: str, precedence: Precedence,
+                 typ: ExpressionType) -> None:
         assert isinstance(precedence, Precedence)
         self._name = name
         self._name_with_spaces = " " + name + " "
         self._precedence = precedence
+        self._type = typ
 
-    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence[Expression]) -> tuple[str, Precedence]:
         return (
             self._name_with_spaces.join(
                 [self.wrap(arg.repr_and_precedence()) for arg in args]
@@ -324,90 +362,97 @@ class Infix(Node):
             self._precedence,
         )
 
+    def type(self) -> ExpressionType:
+        return self._type
+
 
 class Prefix(Node):
     _name: str
     _name_with_space: str
     _precedence: Precedence
+    _type: ExpressionType
 
-    def __init__(self, name: str, precedence: Precedence) -> None:
+    def __init__(self, name: str, precedence: Precedence,
+                 typ: ExpressionType) -> None:
         assert isinstance(precedence, Precedence)
         self._name = name
         self._name_with_space = name + " "
         self._precedence = precedence
+        self._type = typ
 
-    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence[Expression]) -> tuple[str, Precedence]:
         assert len(args) == 1
         return (
             self._name_with_space + self.wrap(args[0].repr_and_precedence()),
             self._precedence,
         )
 
+    def type(self) -> ExpressionType:
+        return self._type
+
 
 class Multiply(Infix):
-
     def __init__(self):
-        Infix.__init__(self, "*", Precedence.MULTIPLICATIVE)
+        Infix.__init__(self, "*", Precedence.MULTIPLICATIVE,
+                       ExpressionType.OBJECT)
 
 
 class Divide(Infix):
-
     def __init__(self):  # pragma: no cover
-        Infix.__init__(self, "/", Precedence.MULTIPLICATIVE)
+        Infix.__init__(self, "/", Precedence.MULTIPLICATIVE,
+                       ExpressionType.OBJECT)
 
 
 class Sum(Infix):
-
     def __init__(self):
-        Infix.__init__(self, "+", Precedence.ADDITIVE)
+        Infix.__init__(self, "+", Precedence.ADDITIVE, ExpressionType.OBJECT)
 
 
 class Difference(Infix):
-
     def __init__(self):  # pragma: no cover
-        Infix.__init__(self, "-", Precedence.ADDITIVE)
+        Infix.__init__(self, "-", Precedence.ADDITIVE, ExpressionType.OBJECT)
 
 
 class Element(Infix):
-
     def __init__(self):
-        Infix.__init__(self, r"\in", Precedence.COMPARISON)
+        Infix.__init__(self, r"\in", Precedence.COMPARISON,
+                       ExpressionType.PROPOSITION)
 
 
 class Equivalent(Infix):
-
     def __init__(self):
-        Infix.__init__(self, "<==>", Precedence.IMPLIES_EQUIV)
+        Infix.__init__(self, "<==>", Precedence.IMPLIES_EQUIV,
+                       ExpressionType.PROPOSITION)
 
 
 class Implies(Infix):
-
     def __init__(self):
-        Infix.__init__(self, "==>", Precedence.IMPLIES_EQUIV)
+        Infix.__init__(self, "==>", Precedence.IMPLIES_EQUIV,
+                       ExpressionType.PROPOSITION)
 
 
 class And(Infix):
-
     def __init__(self):
-        Infix.__init__(self, "and", Precedence.AND_OR)
+        Infix.__init__(self, "and", Precedence.AND_OR,
+                       ExpressionType.PROPOSITION)
 
 
 class Or(Infix):
-
     def __init__(self):
-        Infix.__init__(self, "or", Precedence.AND_OR)
+        Infix.__init__(self, "or", Precedence.AND_OR,
+                       ExpressionType.PROPOSITION)
 
 
 class Not(Prefix):
-
     def __init__(self):
-        Prefix.__init__(self, "not", Precedence.NEGATION)
+        Prefix.__init__(self, "not", Precedence.NEGATION,
+                        ExpressionType.PROPOSITION)
 
 
 class Equal(Infix):
-
     def __init__(self):
-        Infix.__init__(self, "==", Precedence.COMPARISON)
+        Infix.__init__(self, "==", Precedence.COMPARISON,
+                       ExpressionType.PROPOSITION)
 
 
 class Quantifier(Node):
@@ -420,30 +465,41 @@ class Quantifier(Node):
     # include the variables quantified over, because those aren't
     # subexpressions (of bool or object type).
 
-    _variables: Sequence[Variable]
-    _variables_set: FrozenSet[Variable]
+    # Do we need _variables?  dicts now keep entries in insertion order,
+    # so _variables should just be _variables_map.items().
+    _variables: Sequence[(Variable, ExpressionType)]
+    _variables_map: Mapping[Variable, ExpressionType]
 
-    def __init__(self, variables: Union[Iterable[Variable], Variable]):
-        if isinstance(variables, Variable):
-            self._variables = [variables]
-        else:
-            self._variables = list(variables)
+    def __init__(self,
+                 variables: Collection[tuple[Variable, ExpressionType]]):
+        for variable in variables:
+            assert isinstance(variable, tuple)
 
-        self._variables_set = frozenset(self._variables)
+        # Variable names must be unique.
+        assert len({variable for variable, typ in variables}) == len(variables)
+
+        self._variables = list(variables)
+
+        self._variables_map = dict(self._variables)
+
+        assert self._variables == list(self._variables_map.items())
+
+    def type(self) -> ExpressionType:
+        return ExpressionType.PROPOSITION
 
     def get_variables_tree(
-        self, other_dummies: AbstractSet[Variable]
-    ) -> FrozenSet[Variable]:
-        assert other_dummies.isdisjoint(self._variables_set)
-        return self._variables_set
+            self, other_dummies: Mapping[Variable, ExpressionType]
+    ) -> Mapping[Variable, ExpressionType]:
+        assert other_dummies.keys().isdisjoint(self._variables_map)
+        return self._variables_map
 
     def free_variables_tree(
-        self, args: Sequence[Expression], exclude: AbstractSet["Variable"]
-    ) -> Set["Variable"]:
+            self, args: Sequence[Expression], exclude: Set["Variable"]
+    ) -> Set['Variable']:
         # If variable is already in `exclude`, it just shadows the outer one.
         # That's confusing, but not wrong.
-        # "|" is python for union().
-        exclude = exclude | self.get_variables_tree(frozenset())
+        # "|" is union.
+        exclude = exclude | self.get_variables_tree({}).keys()
 
         return {
             variable
@@ -451,53 +507,60 @@ class Quantifier(Node):
             for variable in child.free_variables(exclude)
         }
 
-    def bound_variables_tree(self, args: Sequence[Expression]) -> Set[
-            'Variable']:
-        return {
+    def bound_variables_tree(self, args: Sequence[Expression]) -> \
+            Set[Variable]:
+        # Union the variables we're quantifying over, with those from
+        # subexpressions.
+        return self._variables_map.keys() | {
             variable
             for child in args[1:]
-            for variable in child.bound_variables()
-        }.union(self.get_variables_tree(frozenset()))
+            for variable in child.bound_variables()}
 
     def constructor_tree(self, args: Sequence[Expression]) -> None:
-        assert args[0].bound_variables().isdisjoint(self._variables)
+        assert args[0].bound_variables().isdisjoint(self._variables_map.keys())
 
-    def __eq__(self, other) -> bool:
-        return type(self) == type(other) and self._variables_set == \
-               other._variables_set
+    def __eq__(self, other: Quantifier) -> bool:
+        return type(self) == type(other) and self._variables_map == \
+               other._variables_map
 
     def __hash__(self):
-        return hash( (type(self), self._variables_set) )
+        return hash((type(self), frozenset(self._variables_map.items())))
 
 
 class ForAll(Quantifier):
     def __repr__(self):
-        return r"\forall{"+", ".join(str(v) for v in self._variables)+"}"
+        return r"\forall{" + ", ".join(str(variable) + ": " + str(typ.name)
+                                       for variable, typ in
+                                       self._variables_map.items()) \
+               + "}"
 
 
 class Exists(Quantifier):
     def __repr__(self):
-        return r"\exists{"+", ".join(str(v) for v in self._variables)+"}"
+        return r"\exists{" + ", ".join(str(variable) + ": " + str(typ.name)
+                                       for variable, typ in
+                                       self._variables_map.items()) + "}"
 
 
 class ListLiteral(Node):
-
     def __init__(self):
         pass
 
-    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence[Expression]) -> tuple[str, Precedence]:
         return (
             "[" + ", ".join([repr(arg) for arg in args]) + "]",
             Precedence.FUNCALL,
         )
 
+    def type(self) -> ExpressionType:
+        return ExpressionType.OBJECT
+
 
 class MatrixLiteral(Node):
-
     def __init__(self):
         pass
 
-    def repr_tree(self, args: Sequence[Expression]) -> Tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence[Expression]) -> tuple[str, Precedence]:
         if all(has_head(arg, ListLiteral) for arg in args):
             return (
                 "["
@@ -517,6 +580,9 @@ class MatrixLiteral(Node):
                 Precedence.FUNCALL,
             )
 
+    def type(self) -> ExpressionType:
+        return ExpressionType.OBJECT
+
 
 class NumberLiteral(Node):
     _value: NumberT
@@ -533,12 +599,14 @@ class NumberLiteral(Node):
     def __hash__(self):
         return hash(self._value)
 
+    def type(self) -> ExpressionType:
+        return ExpressionType.NUMBER_LITERAL
+
     def declass(self):  # pragma: no cover
         return self._value
 
 
-def makefn(clz: Type[Node], name=""):
-
+def makefn(clz: builtins.type[Node], name=""):
     def maker(*args):
         return CompositeExpression([clz()] + list(args))
 
@@ -576,9 +644,23 @@ def num(value: NumberT) -> NumberLiteral:
     return NumberLiteral(value)
 
 
-def forall(variables: Union[Iterable[Variable], Variable], expr: Expression):
+def forall(variables: Iterable[tuple[Variable, ExpressionType]] |
+           Iterable[Variable] | Variable,
+           expr: Expression) \
+        -> CompositeExpression:
+    if isinstance(variables, Variable):
+        variables = [(variables, ExpressionType.ANY)]
+    elif all(isinstance(variable, Variable) for variable in variables):
+        variables = [(variable, ExpressionType.ANY) for variable in variables]
     return CompositeExpression([ForAll(variables), expr])
 
 
-def exists(variables: Union[Iterable[Variable], Variable], expr: Expression):
+def exists(variables: Iterable[tuple[Variable, ExpressionType]] |
+           Iterable[Variable] | Variable,
+           expr: Expression) \
+        -> CompositeExpression:
+    if isinstance(variables, Variable):
+        variables = [(variables, ExpressionType.ANY)]
+    elif all(isinstance(variable, Variable) for variable in variables):
+        variables = [(variable, ExpressionType.ANY) for variable in variables]
     return CompositeExpression([Exists(variables), expr])

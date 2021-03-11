@@ -1,7 +1,10 @@
 import unittest
+from typing import cast
+
 import Parser
 
 from Expression import (
+    ExpressionType,
     Expression,
     forall,
     exists,
@@ -9,12 +12,11 @@ from Expression import (
     list_literal,
     num,
     in_,
+    and_,
     matrix_literal,
     sum_,
-    implies,
+    implies, CompositeExpression,
 )
-
-import typeguard
 
 A = var("A")
 B = var("B")
@@ -51,16 +53,17 @@ class TestRepr(unittest.TestCase):
         self.canonical("not (P and Q)")
 
     def test_forall(self):
-        self.assertEqual(repr(forall(P, ex("P ==> P"))), r"\forall{P}(P ==> P)")
+        self.assertEqual(r"\forall{P: ANY}(P ==> P)",
+                         repr(forall(P, ex("P ==> P"))), )
 
         self.assertEqual(
             repr(forall((P, Q), ex("P + Q == Q + P"))),
-            r"\forall{P, Q}(P + Q == Q + P)",
+            r"\forall{P: ANY, Q: ANY}(P + Q == Q + P)",
         )
 
     def test_exists(self):
         self.assertEqual(
-            repr(exists(A, ex("A + A == A"))), r"\exists{A}(A + A == A)"
+            r"\exists{A: ANY}(A + A == A)", repr(exists(A, ex("A + A == A")))
         )
 
     def test_in(self):
@@ -130,12 +133,67 @@ class TestFreeVars(unittest.TestCase):
     #         set(),
     #     )
 
-class TestBoundVariables(unittest.TestCase):
 
+class TestBoundVariables(unittest.TestCase):
     def test_basic(self) -> None:
         self.assertEqual(forall(P, ex("P * M == M * P")).bound_variables(),
                          {P})
 
+    def test_multiple_with_same_name(self) -> None:
+        self.assertEqual(
+            and_(forall(((P, ExpressionType.OBJECT),), ex("P + P == P")),
+                 forall(((P, ExpressionType.PROPOSITION),), ex("P or not P"))).\
+            bound_variables(),
+            {P}
+        )
+
+
+class TestFreeVariables(unittest.TestCase):
+    def test_basic(self) -> None:
+        self.assertEqual(ex("a + b == b + a").free_variables(frozenset()),
+                         {a, b})
+
+    def test_quantifier(self) -> None:
+        self.assertEqual(
+            forall(b, ex('a + b == b + a')).free_variables(frozenset()),
+            {a})
+
+    def test_shadow(self) -> None:
+        self.assertEqual(
+            and_(P,
+                forall(P, ex('P or not P'))).free_variables(frozenset()),
+            {P})
+
+
+class TestVariables(unittest.TestCase):
+    def test_basic(self) -> None:
+        # Only non-empty on quantifiers.
+        self.assertEqual(
+            and_(P, Q).get_variables({}),
+            {}
+        )
+
+        self.assertEqual(
+            and_(P, forall(Q, ex("Q and Q"))).get_variables({}),
+            {}
+        )
+
+        self.assertEqual(
+            forall(P, ex("P ==> P")).get_variables({}),
+            {P: ExpressionType.ANY}
+        )
+
+        self.assertEqual(
+            forall((P, Q), ex("P ==> Q")).get_variables({}),
+            {P: ExpressionType.ANY, Q: ExpressionType.ANY}
+        )
+
+        self.assertEqual(
+            forall(P, forall(Q, ex("P ==> Q"))).get_variables({}),
+            {P: ExpressionType.ANY}
+        )
+
+
 if __name__ == "__main__":
-    with typeguard.TypeChecker(["Parser", "Expression"]):
-        unittest.main()
+    # with typeguard.TypeChecker(["Parser", "Expression"]):
+    unittest.main()

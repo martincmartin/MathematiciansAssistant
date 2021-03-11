@@ -1,0 +1,98 @@
+I seem to be stuck, but some thoughts:
+
+The long term goal is to understand & explore new structures, so it seems
+better to start with field axioms than stuff from middle school / high school
+algebra.
+
+We want to start with + being a binary relation, with commutativity and
+associativity, and having the system figure out that it can represent a
+sum of terms as a list of set.
+
+The additive inverse thing is tricky.  First you need to figure out that, given
+x = y, you can conclude x + z = y + z.  Maybe we just provide that as an axiom
+for now.
+
+Then, given x + 7 = 11, it has to think of adding -7 to both sides.  And it
+first has to generate -7, all we have are the field axioms, so all we get is
+"exists b: 7 + b = 0".  I suspect we'll quickly need a way to define functions,
+but until we have that, we have to use the exists as a kind of let binding.  In
+other words, the system will need to use exists as a kind of way to define a
+value that depends on other value(s).  (The additive and multiplicative inverses
+are the only fields axioms that have "exists" in them, as long as you take 0 and
+1 as named constants.
+
+We should start with simplifying expressions.  Goal could simply be fewest nodes
+in the tree.
+
+But at some point, we get x + 7 on the LHS and our goal is to find something to
+add to it to simplify it.  Perhaps we could guess "(x + 7) + something", and
+work forward to "x + (7 + something)" and only then pattern match with additive
+identity?
+
+So sure, let's start with simplifying expressions.  Let's give it a black box
+for arithmetic operations on literals.  How do we express that as a rule?  It's
+like a special rule that can only be used in one direction.  Either inference
+direction, but only used to replace the sum of two literals with a single
+literal, not the other way around.
+
+So what can we simplify?  From a middle school textbook:
+
+x + 0
+
+(x + 0) + 0
+
+x + 7 (can't be simplified further)
+
+(x + 7) + -7
+
+6x + 3x
+
+15d - 3d
+6a * 3
+6a * 3a
+5x8y
+42c / 7
+50g / (10g)
+7n + 8n*3
+
+There's also substituting values for variables.
+
+So we need a way to apply arithmetic to literals.  We want it under control of
+the system, i.e. it decides when to collapse numbers and when not to.  So we
+probably want it expressed as a rule.  But it's a funny kind of rule, where the
+variable only applies to literal, or we introduce a predicate "is literal" so we
+can say "forall x, y: literal(x) && literal(y) => x + y = {opaque something}"
+It's like an exists, but it doesn't need a witness variable, nor does it need a
+condition added to the context/definitions.
+
+Coq essentially has an "is literal" predicate because it expresses things in the
+form S x or 0.  Matching those means matching literals.  x + y is simplified by
+S x + y = x + S y, and 0 + y = 0.  We essentially want an iterated version of
+that, that matches n S's followed by a zero on the left, and replaces it with n
+S's on the y.  So this is a kind of "parameterized matching" that we want to get
+to, where our aren't simple destructuring bind, but have a kind of regex quality
+where there can be repeated elements.  Like XPath, except XPath is for selecting
+nodes.
+
+So we need a matching that's not simply "does this symbol exactly match this
+other symbol" or "this variable can match anything," but a little in between,
+"this variable can match a symbol of this type."  So our symbols have types.  I
+think we can special case that for now.  What's a good syntax to express that?
+We've been re-using our expression syntax for rules, which is handy, but maybe
+it's time to express things differently.  Coq has a separate tactics language.
+
+So Coq's ltac language has ways of matching only certain *syntactic* constructs,
+like identifier (used by the "intro" tactic).  It doesn't seem to have a way to
+match a variable number of things like we need, just destructuring bind.  It's
+only intended to be intermediate in power between the proof language and full
+OCaml.
+
+Actually, I may have misunderstood, I think the ltac node "syn_value" can be an
+integer literal, not match an integer literal, as it is the value of a tactic.
+
+People like : for types, in both Python and typescript.  Oh and in Coq now,
+where it's part of the "forall".
+
+In Coq, expressions are terms and all terms have a type, and there are
+essentially no free variables, since every free variable in the goal must have a
+definition in the context.
