@@ -124,8 +124,8 @@ class Expression(abc.ABC):
     def type(self) -> ExpressionType:
         raise NotImplementedError  # pragma: nocover
 
-    def free_variables(self, exclude: Set["Variable"]) -> \
-            Set["Variable"]:
+    def free_variables(self, exclude: Set[Variable]) -> \
+            Set[Variable]:
         """Returns the set of free variables in this (sub-)expression.
 
         Free variables are the ones that are *not* covered by an forall or
@@ -152,21 +152,21 @@ class Expression(abc.ABC):
     # argument y.  So, f(x), a CompositeExpression, appears as the first
     # child of another CompositeExpression.  So the _tree methods will be
     # called on CompositeExpressions in that case.
-    def constructor_tree(self, args: Sequence["Expression"]):
+    def constructor_tree(self, args: Sequence[Expression]):
         pass
 
-    def repr_tree(self, args: Sequence['Expression']) -> tuple[str, Precedence]:
+    def repr_tree(self, args: Sequence[Expression]) -> tuple[str, Precedence]:
         return (
             repr(self) + "(" + ", ".join([repr(arg) for arg in args]) + ")",
             Precedence.FUNCALL,
         )
 
     def free_variables_tree(
-            self, args: Sequence['Expression'], exclude: Set["Variable"]
-    ) -> Set["Variable"]:
+            self, args: Sequence[Expression], exclude: Set[Variable]
+    ) -> Set[Variable]:
         raise NotImplementedError  # pragma: no cover
 
-    def bound_variables_tree(self, args: Sequence['Expression']) -> \
+    def bound_variables_tree(self, args: Sequence[Expression]) -> \
             Set[Variable]:
         raise NotImplementedError  # pragma: no cover
 
@@ -199,8 +199,8 @@ class Node(Expression, abc.ABC):
         )
 
     def free_variables_tree(
-            self, args: Sequence[Expression], exclude: Set["Variable"]
-    ) -> Set["Variable"]:
+            self, args: Sequence[Expression], exclude: Set[Variable]
+    ) -> Set[Variable]:
         return {
             variable
             for child in args
@@ -264,7 +264,7 @@ class Variable(Node):
     def declass(self):  # pragma: no cover
         return self._name
 
-    def free_variables(self, exclude: Set["Variable"]) -> Set["Variable"]:
+    def free_variables(self, exclude: Set[Variable]) -> Set[Variable]:
         if self in exclude:
             return set()
         else:
@@ -485,8 +485,8 @@ class Quantifier(Node):
         return self._variables_map
 
     def free_variables_tree(
-            self, args: Sequence[Expression], exclude: Set["Variable"]
-    ) -> Set['Variable']:
+            self, args: Sequence[Expression], exclude: Set[Variable]
+    ) -> Set[Variable]:
         # If variable is already in `exclude`, it just shadows the outer one.
         # That's confusing, but not wrong.
         # "|" is union.
