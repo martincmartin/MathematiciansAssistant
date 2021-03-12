@@ -6,25 +6,37 @@ import Parser
 from Expression import var, sum_, num, forall, ExpressionType
 # import typeguard
 
-A = var("A")
-B = var("B")
-M = var("M")
+OBJECT = ExpressionType.OBJECT
+PROPOSITION = ExpressionType.PROPOSITION
 
-P = var("P")
-_P = var("_P")
-Q = var("Q")
-R = var("R")
+A = var("A", OBJECT)
+_A = var("_A", OBJECT)
+B = var("B", OBJECT)
+C = var("C", OBJECT)
+M = var("M", OBJECT)
 
-a = var("a")
-_a = var("_a")
-b = var("b")
-c = var("c")
-d = var("d")
+P = var("P", PROPOSITION)
+Q = var("Q", PROPOSITION)
 
-p = var("p")
-q = var("q")
-r = var("r")
-s = var("s")
+U = var("U", PROPOSITION)
+V = var("V", PROPOSITION)
+
+R = var("R", OBJECT)
+
+a = var("a", OBJECT)
+_a = var("_a", OBJECT)
+b = var("b", OBJECT)
+c = var("c", OBJECT)
+d = var("d", OBJECT)
+
+p = var("p", OBJECT)
+q = var("q", OBJECT)
+r = var("r", OBJECT)
+s = var("s", OBJECT)
+
+x = var("x", OBJECT)
+y = var("y", OBJECT)
+z = var("z", OBJECT)
 
 
 def ex(string):
@@ -37,32 +49,34 @@ ANY = ExpressionType.ANY
 class TestMatch(unittest.TestCase):
 
     def test_node(self):
-        self.assertEqual(match({P: ANY}, P, P + Q), {P: (P + Q)})
+        self.assertEqual(match({A: ANY}, A, A + B), {A: (A + B)})
 
     def test_sum(self):
-        self.assertEqual(match({P: ANY}, P + B, Q + B), {P: Q})
+        self.assertEqual(match({A: ANY}, A + B, C + B), {A: C})
 
     def test_different_root(self):
-        self.assertIsNone(match({}, P + Q, P * Q))
+        self.assertIsNone(match({}, A + B, A * B))
 
     def test_different_len(self):
-        self.assertIsNone(match({}, P + Q, sum_(P, Q, A)))
+        # I'm not sure sum_(A, B, C) should be allowed; addition is only
+        # defined on two arguments, not 3.  Oh well.
+        self.assertIsNone(match({}, A + B, sum_(A, B, C)))
 
     def test_simple(self):
         self.assertEqual(
-            match({P: ANY}, ex("P in B"), ex("P + Q in B")), {P: (P + Q)}
+            match({A: ANY}, ex("A in B"), ex("A + C in B")), {A: (A + C)}
         )
 
     def test_dummy_appears_twice(self):
         self.assertEqual(
-            match({P: ANY}, ex("P in P"), ex("P + Q in P + Q")), {P: (P + Q)}
+            match({A: ANY}, ex("A in A"), ex("A + B in A + B")), {A: (A + B)}
         )
 
     def test_dummy_appears_twice2(self):
-        self.assertIsNone(match({P: ANY}, ex("P in P"), ex("P + Q in P + B")))
+        self.assertIsNone(match({A: ANY}, ex("A in A"), ex("A + B in A + C")))
 
     def test_two_dummies(self):
-        self.assertEqual(match({P: ANY, Q: ANY}, P + Q, A + B), {P: A, Q: B})
+        self.assertEqual(match({x: ANY, y: ANY}, x + y, A + B), {x: A, y: B})
 
     def test_number_literal(self):
         self.assertEqual(match({a: ANY}, a, num(1)), {a: num(1)})
@@ -90,10 +104,10 @@ class TestIsInstance(unittest.TestCase):
     def test_distributed_law(self):
         self.assertEqual(
             is_instance(
-                ex("(P + Q) * M == P * M + Q * M"),
-                forall((A, B, M), ex("(A + B) * M == A * M + B * M")),
+                ex("(A + B) * M == A * M + B * M"),
+                forall((x, y, M), ex("(x + y) * M == x * M + y * M")),
             ),
-            {A: P, B: Q, M: M},
+            {x: A, y: B, M: M},
         )
 
 
@@ -122,13 +136,14 @@ class TestRenameQuantified(unittest.TestCase):
 
     def test_overlapping(self):
         self.assertEqual(
-            forall((var('__a'), _a), ex('_a * __a == 0')),
+            forall((var('__a', OBJECT), _a), ex('_a * __a == 0')),
             rename_quantified(forall((a, _a), ex('_a * a == 0')),
                               {a, M}))
 
     def test_hmm(self):
         self.assertEqual(
-            forall((var('__a'), var('___a')), ex("___a * __a == 0")),
+            forall((var('__a', OBJECT), var('___a', OBJECT)),
+                   ex("___a * __a == 0")),
             rename_quantified(forall((a, _a), ex('_a * a == 0')),
                               {a, _a}))
 
@@ -153,8 +168,8 @@ class TestTryRule(unittest.TestCase):
     def test_doesnt_match(self):
         self.assertEqual(
             try_rule(
-                forall((P, Q, R), ex("(P + Q) * R == P * R + Q * R")),
-                ex("P + Q in B"),
+                forall((A, B, C), ex("(A + B) * C == A * C + B * C")),
+                ex("A + B in R"),
                 Direction.BACKWARD,
             ),
             set(),
@@ -182,20 +197,20 @@ class TestTryRule(unittest.TestCase):
         self.assertEqual(
             try_rule(
                 forall((P, Q), ex("((P ==> Q) and P) ==> Q")),
-                ex("(A ==> B) and A"),
+                ex("(U ==> V) and U"),
                 Direction.FORWARD,
             ),
-            {ex("B")},
+            {V},
         )
 
     def test_definition_of_set(self):
         self.assertEqual(
             try_rule(
-                forall(P, ex("P in B <==> P * M == M * P")),
-                ex("P + Q in B"),
+                forall(A, ex("A in B <==> A * M == M * A")),
+                ex("A + C in B"),
                 Direction.BACKWARD,
             ),
-            {ex("(P + Q) * M == M * (P + Q)")},
+            {ex("(A + C) * M == M * (A + C)")},
         )
 
     def test_distribute_right(self):
@@ -247,13 +262,13 @@ class TestTryRule(unittest.TestCase):
     def test_cancel_both_sides(self):
         self.assertEqual(
             try_rule(
-                forall((P, Q, R), ex("P + Q == P + R <==> Q == R")),
-                ex("M * P + Q * M == M * P + M * Q"),
+                forall((A, B, C), ex("A + B == A + C <==> B == C")),
+                ex("M * A + B * M == M * A + M * B"),
                 Direction.BACKWARD,
             ),
             {
-                ex("Q * M == M * Q"),
-                forall(_P, ex("_P + (M * P + Q * M) == _P + (M * P + M * Q)")),
+                ex("B * M == M * B"),
+                forall(_A, ex("_A + (M * A + B * M) == _A + (M * A + M * B)")),
             },
         )
 
@@ -337,10 +352,10 @@ class TestTryRule(unittest.TestCase):
         self.assertEqual(
             try_rule(
                 forall(a, ex("1 * a == a")),
-                forall((P, Q), ex("1 * P == Q")),
+                forall((B, C), ex("1 * B == C")),
                 Direction.FORWARD
             ),
-            {forall((P, Q), ex('P == Q'))},
+            {forall((B, C), ex('B == C'))},
         )
 
     def test_rename(self):

@@ -570,7 +570,7 @@ def new_variable(old_variable: Variable, taken: Set[Variable]) -> Variable:
     new_name = old_variable.name
     while new_name in taken_names:
         new_name = "_" + new_name
-    return var(new_name)
+    return var(new_name, old_variable.type())
 
 
 def get_lhs(expr: Expression) -> Expression:

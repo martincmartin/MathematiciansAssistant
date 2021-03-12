@@ -13,7 +13,7 @@ import unittest
 # python3 -m pdb -c continue test_Parser.py
 
 from Expression import var, and_, or_, not_, implies, equal, in_, iff, \
-    matrix_literal, list_literal, num
+    matrix_literal, list_literal, num, ExpressionType
 
 import Parser
 # from DeductionHelpers import *
@@ -21,22 +21,29 @@ import tokenize
 
 # from pprint import pprint
 
-P = var("P")
-Q = var("Q")
-R = var("R")
-A = var("A")
-B = var("B")
-M = var("M")
+OBJECT = ExpressionType.OBJECT
+PROPOSITION = ExpressionType.PROPOSITION
 
-a = var("a")
-b = var("b")
-c = var("c")
-d = var("d")
+P = var("P", PROPOSITION)
+Q = var("Q", PROPOSITION)
+R = var("R", PROPOSITION)
+S = var("S", PROPOSITION)
 
-p = var("p")
-q = var("q")
-r = var("r")
-s = var("s")
+A = var("A", OBJECT)
+B = var("B", OBJECT)
+C = var("C", OBJECT)
+
+M = var("M", OBJECT)
+
+a = var("a", OBJECT)
+b = var("b", OBJECT)
+c = var("c", OBJECT)
+d = var("d", OBJECT)
+
+p = var("p", OBJECT)
+q = var("q", OBJECT)
+r = var("r", OBJECT)
+s = var("s", OBJECT)
 
 
 def ex(string):
@@ -58,40 +65,40 @@ class TestParser(unittest.TestCase):
             ex("( P")
 
     def test_mult(self):
-        self.assertEqual(ex("P*Q"), P * Q)
+        self.assertEqual(ex("A*B"), A * B)
 
     def test_mult2(self):
-        self.assertEqual(ex("P*Q*R"), (P * Q) * R)
+        self.assertEqual(ex("A*B*C"), (A * B) * C)
 
     def test_mult3(self):
-        self.assertEqual(ex("P*(Q*R)"), P * (Q * R))
+        self.assertEqual(ex("A*(B*C)"), A * (B * C))
 
     def test_mult4(self):
-        self.assertEqual(ex("(P*Q)*R"), (P * Q) * R)
+        self.assertEqual(ex("(A*B)*C"), (A * B) * C)
 
     def test_add_mult(self):
-        self.assertEqual(ex("P + Q*R"), P + Q * R)
+        self.assertEqual(ex("A + B*C"), A + B * C)
 
     def test_add_mult2(self):
-        self.assertEqual(ex("P * Q+R"), P * Q + R)
+        self.assertEqual(ex("A * B+C"), A * B + C)
 
     def test_add_mult3(self):
-        self.assertEqual(ex("(P + Q) * R"), (P + Q) * R)
+        self.assertEqual(ex("(A + B) * C"), (A + B) * C)
 
     def test_add_mult4(self):
-        self.assertEqual(ex("P * (Q + R)"), P * (Q + R))
+        self.assertEqual(ex("A * (B + C)"), A * (B + C))
 
     def test_compare(self):
         self.assertEqual(
-            ex("R * (P + Q) == R * P + R * Q"),
-            equal(R * (P + Q), R * P + R * Q),
+            ex("C * (A + B) == C * A + C * B"),
+            equal(C * (A + B), C * A + C * B),
         )
 
     def test_in(self):
-        self.assertEqual(ex("P + Q in B"), in_(P + Q, B))
+        self.assertEqual(ex("A + B in C"), in_(A + B, C))
 
     def test_not(self):
-        self.assertEqual(ex("not P == Q"), not_(equal(P, Q)))
+        self.assertEqual(ex("not P <==> Q"), iff(not_(P), Q))
 
     def test_not2(self):
         self.assertEqual(ex("not P and Q"), and_(not_(P), Q))
@@ -101,7 +108,7 @@ class TestParser(unittest.TestCase):
 
     def test_implies(self):
         self.assertEqual(
-            ex("not P or Q ==> A and B"), implies(or_(not_(P), Q), and_(A, B))
+            ex("not P or Q ==> R and S"), implies(or_(not_(P), Q), and_(R, S))
         )
 
     def test_iff(self):
@@ -135,8 +142,8 @@ class TestParser(unittest.TestCase):
 
     def test_matrix(self):
         self.assertEqual(
-            ex("[P Q; Q R]"),
-            matrix_literal(list_literal(P, Q), list_literal(Q, R)),
+            ex("[A B; B C]"),
+            matrix_literal(list_literal(A, B), list_literal(B, C)),
         )
 
         self.assertEqual(

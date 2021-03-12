@@ -52,7 +52,7 @@ import builtins
 from enum import Enum, unique
 from functools import total_ordering
 
-from typing import Union, cast
+from typing import Union, cast, Optional
 from collections.abc import Sequence, Set, Iterable, Hashable, Mapping, \
     Collection
 
@@ -153,6 +153,7 @@ class Expression(abc.ABC):
     # child of another CompositeExpression.  So the _tree methods will be
     # called on CompositeExpressions in that case.
     def constructor_tree(self, args: Sequence[Expression]):
+        """Called from __init__, allows methods to reject the tree."""
         pass
 
     def repr_tree(self, args: Sequence[Expression]) -> tuple[str, Precedence]:
@@ -238,9 +239,11 @@ class Node(Expression, abc.ABC):
 
 class Variable(Node):
     _name: str
+    _type: Optional[ExpressionType]
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, typ: Optional[ExpressionType]) -> None:
         self._name = name
+        self._type = typ
 
     @property
     def name(self) -> str:
@@ -250,16 +253,30 @@ class Variable(Node):
         return self._name
 
     def __eq__(self, other) -> bool:
-        return isinstance(other, Variable) and self._name == other._name
+        # Physicists like to use two different variables with the same name
+        # in the same expression, like "i" for both the imaginary unit and
+        # indexing a vector/matrix.  They don't always distinguish based on
+        # type though, e.g. two different variables with the same name could
+        # conceivably have the same type.  For explicitness, here we require,
+        # in our "universe of discourse," different variables to have
+        # different names.
+        if isinstance(other, Variable) and self._name == other._name:
+            assert self.type() == other.type()
+            return True
+        return False
 
     def __hash__(self):
         return hash(self._name)
 
-    def type(self):
+    def type(self) -> ExpressionType:
         # TODO: these needs types, even when leaves of expressions, e.g. in
         # x + y, x and y are both math objects, not propositions, whereas in
         # p and q, they're both propositions, not math objects.
-        return ExpressionType.ANY
+        return self._type
+
+    def set_type(self, typ: ExpressionType):
+        assert self._type is None or self._type == typ
+        self._type = typ
 
     def declass(self):  # pragma: no cover
         return self._name
@@ -293,6 +310,10 @@ class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
         assert all(isinstance(it, Hashable) for it in iterable)
         children = list(iterable)
         assert len(children) > 0
+        # Hack: fill in variable type based on context of how it is used.
+        for child in children:
+            if isinstance(child, Variable):
+                child.set_type(type(children[0]).arg_type)
         children[0].constructor_tree(children[1:])
 
     # I'm using inheritance instead of composition.  Oh well.
@@ -320,10 +341,6 @@ class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
         """Only defined for Quantifiers, gets the variables quantified over."""
         return self[0].get_variables_tree(other_dummies)
 
-    def constructor_tree(self, args: Sequence[Expression]) -> None:
-        """Called from __init__, allows methods to reject the tree."""
-        pass
-
     def bound_variables(self) -> Set[Variable]:
         return self[0].bound_variables_tree(self[1:])
 
@@ -342,7 +359,7 @@ class Infix(Node):
     _name: str
     _name_with_spaces: str
     _precedence: Precedence
-    _type: ExpressionType
+    _type: ExpressionType # This the result type
 
     def __init__(self, name: str, precedence: Precedence,
                  typ: ExpressionType) -> None:
@@ -390,71 +407,95 @@ class Prefix(Node):
 
 
 class Multiply(Infix):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):
         Infix.__init__(self, "*", Precedence.MULTIPLICATIVE,
                        ExpressionType.OBJECT)
 
 
 class Divide(Infix):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):  # pragma: no cover
         Infix.__init__(self, "/", Precedence.MULTIPLICATIVE,
                        ExpressionType.OBJECT)
 
 
 class Sum(Infix):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):
         Infix.__init__(self, "+", Precedence.ADDITIVE, ExpressionType.OBJECT)
 
 
 class Difference(Infix):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):  # pragma: no cover
         Infix.__init__(self, "-", Precedence.ADDITIVE, ExpressionType.OBJECT)
 
 
 class Element(Infix):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):
         Infix.__init__(self, r"\in", Precedence.COMPARISON,
                        ExpressionType.PROPOSITION)
 
 
 class Equivalent(Infix):
+    arg_type = ExpressionType.PROPOSITION
+
     def __init__(self):
         Infix.__init__(self, "<==>", Precedence.IMPLIES_EQUIV,
                        ExpressionType.PROPOSITION)
 
 
 class Implies(Infix):
+    arg_type = ExpressionType.PROPOSITION
+
     def __init__(self):
         Infix.__init__(self, "==>", Precedence.IMPLIES_EQUIV,
                        ExpressionType.PROPOSITION)
 
 
 class And(Infix):
+    arg_type = ExpressionType.PROPOSITION
+
     def __init__(self):
         Infix.__init__(self, "and", Precedence.AND_OR,
                        ExpressionType.PROPOSITION)
 
 
 class Or(Infix):
+    arg_type = ExpressionType.PROPOSITION
+
     def __init__(self):
         Infix.__init__(self, "or", Precedence.AND_OR,
                        ExpressionType.PROPOSITION)
 
 
 class Not(Prefix):
+    arg_type = ExpressionType.PROPOSITION
+
     def __init__(self):
         Prefix.__init__(self, "not", Precedence.NEGATION,
                         ExpressionType.PROPOSITION)
 
 
 class Equal(Infix):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):
         Infix.__init__(self, "==", Precedence.COMPARISON,
                        ExpressionType.PROPOSITION)
 
 
 class Quantifier(Node):
-    # Until we have a real type system, we want CompositeExpression to
+    arg_type = ExpressionType.OBJECT
+
+    # We want CompositeExpression to
     # essentially be a function call, i.e. that the first child is the function,
     # and the other children are the arguments.  And for now, we want all
     # arguments to be of type "bool" (or proposition?) or "object",
@@ -534,6 +575,8 @@ class Exists(Quantifier):
 
 
 class ListLiteral(Node):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):
         pass
 
@@ -548,6 +591,8 @@ class ListLiteral(Node):
 
 
 class MatrixLiteral(Node):
+    arg_type = ExpressionType.OBJECT
+
     def __init__(self):
         pass
 
@@ -619,8 +664,8 @@ list_literal = makefn(ListLiteral, "list_literal")
 matrix_literal = makefn(MatrixLiteral)
 
 
-def var(name: str) -> Variable:
-    return Variable(name)
+def var(name: str, typ: Optional[ExpressionType]) -> Variable:
+    return Variable(name, typ)
 
 
 def iff(left, right):

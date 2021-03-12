@@ -125,7 +125,7 @@ class Parser:
             self.expect(RPAR)
             return e
         if self.accept(NAME):
-            return var(self.token.string)
+            return var(self.token.string, None)
 
         """
         This is the Python syntax for list literals: [a, b, c].

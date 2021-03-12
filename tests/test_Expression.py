@@ -18,17 +18,20 @@ from Expression import (
     implies, CompositeExpression,
 )
 
-A = var("A")
-B = var("B")
-M = var("M")
-P = var("P")
-Q = var("Q")
-R = var("R")
+OBJECT = ExpressionType.OBJECT
+PROPOSITION = ExpressionType.PROPOSITION
 
-a = var("a")
-b = var("b")
-c = var("c")
-d = var("d")
+A = var("A", OBJECT)
+B = var("B", OBJECT)
+M = var("M", OBJECT)
+P = var("P", PROPOSITION)
+Q = var("Q", PROPOSITION)
+R = var("R", OBJECT)
+
+a = var("a", OBJECT)
+b = var("b", OBJECT)
+c = var("c", OBJECT)
+d = var("d", OBJECT)
 
 
 def ex(string: str) -> Expression:
@@ -67,7 +70,7 @@ class TestRepr(unittest.TestCase):
         )
 
     def test_in(self):
-        self.assertEqual(repr(in_(P, B)), r"P \in B")
+        self.assertEqual(repr(in_(A, B)), r"A \in B")
 
     def test_number_literal(self):
         self.assertEqual(repr(num(15)), "15")
