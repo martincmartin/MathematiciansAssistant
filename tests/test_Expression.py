@@ -56,17 +56,18 @@ class TestRepr(unittest.TestCase):
         self.canonical("not (P and Q)")
 
     def test_forall(self):
-        self.assertEqual(r"\forall{P: ANY}(P ==> P)",
+        self.assertEqual(r"\forall{P: PROPOSITION}(P ==> P)",
                          repr(forall(P, ex("P ==> P"))), )
 
         self.assertEqual(
-            repr(forall((P, Q), ex("P + Q == Q + P"))),
-            r"\forall{P: ANY, Q: ANY}(P + Q == Q + P)",
+            r"\forall{a: OBJECT, b: OBJECT}(a + b == b + a)",
+            repr(forall((a, b), ex("a + b == b + a"))),
         )
 
     def test_exists(self):
         self.assertEqual(
-            r"\exists{A: ANY}(A + A == A)", repr(exists(A, ex("A + A == A")))
+            r"\exists{A: OBJECT}(A + A == A)",
+            repr(exists(A, ex("A + A == A")))
         )
 
     def test_in(self):
@@ -139,33 +140,36 @@ class TestFreeVars(unittest.TestCase):
 
 class TestBoundVariables(unittest.TestCase):
     def test_basic(self) -> None:
-        self.assertEqual(forall(P, ex("P * M == M * P")).bound_variables(),
-                         {P})
+        self.assertEqual(forall(A, ex("A * M == M * A")).bound_variables(),
+                         {'A'})
 
     def test_multiple_with_same_name(self) -> None:
         self.assertEqual(
-            and_(forall(((P, ExpressionType.OBJECT),), ex("P + P == P")),
-                 forall(((P, ExpressionType.PROPOSITION),), ex("P or not P"))).\
+            and_(forall(var('P', OBJECT), ex("P + P == P")),
+                 forall(var('P', PROPOSITION), ex("P or not P"))).
             bound_variables(),
-            {P}
+            {'P'}
         )
 
 
 class TestFreeVariables(unittest.TestCase):
     def test_basic(self) -> None:
-        self.assertEqual(ex("a + b == b + a").free_variables(frozenset()),
-                         {a, b})
+        self.assertEqual(
+            {a, b},
+            ex("a + b == b + a").free_variables(frozenset()),
+        )
 
     def test_quantifier(self) -> None:
         self.assertEqual(
-            forall(b, ex('a + b == b + a')).free_variables(frozenset()),
-            {a})
+            {a},
+            forall(b, ex('a + b == b + a')).free_variables(frozenset()))
 
     def test_shadow(self) -> None:
         self.assertEqual(
+            {P},
             and_(P,
-                forall(P, ex('P or not P'))).free_variables(frozenset()),
-            {P})
+                 forall(P, ex('P or not P'))).free_variables(frozenset()),
+        )
 
 
 class TestVariables(unittest.TestCase):
@@ -183,17 +187,17 @@ class TestVariables(unittest.TestCase):
 
         self.assertEqual(
             forall(P, ex("P ==> P")).get_variables({}),
-            {P: ExpressionType.ANY}
+            {'P': P}
         )
 
         self.assertEqual(
             forall((P, Q), ex("P ==> Q")).get_variables({}),
-            {P: ExpressionType.ANY, Q: ExpressionType.ANY}
+            {'P': P, 'Q': Q}
         )
 
         self.assertEqual(
             forall(P, forall(Q, ex("P ==> Q"))).get_variables({}),
-            {P: ExpressionType.ANY}
+            {'P': P}
         )
 
 

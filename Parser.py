@@ -37,7 +37,6 @@ class Parser:
     }
 
     def __init__(self, input_str: str) -> None:
-        print('*'+input_str+"*")
         self.type = None
         self.token = None
 

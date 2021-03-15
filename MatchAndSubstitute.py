@@ -21,7 +21,7 @@ from collections.abc import Set, Mapping, MutableMapping
 
 
 def match(
-    dummies: Mapping[Variable, ExpressionType], pattern: Expression,
+    dummies: Mapping[str, Variable], pattern: Expression,
         target: Expression
 ) -> Optional[Mapping[Variable, Expression]]:
     """Matches "pattern" against "target"s root, i.e. not recursively.
@@ -42,21 +42,32 @@ def match(
     assert isinstance(target, Expression)
 
     if isinstance(pattern, Node):
-        if pattern in dummies:
+        if isinstance(pattern, Variable) and pattern.name in dummies:
             pattern = cast(Variable, pattern)
-            assert pattern not in target.free_variables(dummies.keys())
+            assert pattern not in target.free_variables(
+                frozenset(dummies.values()))
+            # Don't match variables against operators.  There's probably a
+            # better way to express this, e.g. by introducing an Operator
+            # type.  But for now, this will do.
+            if isinstance(target, Node):
+                if not (
+                    isinstance(target, NumberLiteral)
+                    or isinstance(target, Variable)
+                ):
+                    return None
+
             # Can we match this variable against this subtree?  Only if the
             # types match.
-            pattern_type = dummies[pattern]
-            if pattern_type == ExpressionType.ANY:
+            assert pattern.type() == dummies[pattern.name].type()
+            if pattern.type() == ExpressionType.ANY:
                 return {pattern: target}
             target_type = target.type()
             # We need a better way of expressing the type hierarchy.  But for
             # now: a number literal is a math object, a proposition is NOT a
             # math object, and ANY matches anything.
             if target_type == ExpressionType.ANY or \
-                    pattern_type == target_type or \
-                    (pattern_type == ExpressionType.OBJECT and
+                    pattern.type() == target_type or \
+                    (pattern.type() == ExpressionType.OBJECT and
                      target_type == ExpressionType.NUMBER_LITERAL):
                 return {pattern: target}
             else:
@@ -112,8 +123,8 @@ def is_rule(expr: Expression) -> bool:
 
 def is_instance(
     expr: Expression, rule: Expression,
-    dummies: Mapping[Variable, ExpressionType] = {}
-) -> Optional[Mapping[Variable, Expression]]:
+    dummies: Mapping[str, Variable] = {}
+) -> Optional[Mapping[str, Variable]]:
     """Determines whether 'expr' is an instance of 'rule.'
 
     returns the substitution that makes them match, or None if there's no match.
@@ -135,7 +146,7 @@ def is_instance(
 
 def try_rule(
         rule: Expression, target: Expression, direction: Direction,
-        dummies: Mapping[Variable, ExpressionType] = {}) \
+        dummies: Mapping[str, Variable] = {}) \
         -> Set[Expression]:
     """Apply "rule" to "target", returns any new expressions it generates.
 
@@ -354,8 +365,9 @@ def try_rule(
     # output when we don't need to.
 
     # "|" means union.
-    target_vars = target.bound_variables() | target.free_variables(frozenset())
-    quantified = rename_quantified(forall(dummies, rule), target_vars)
+    target_vars = target.bound_variables() | \
+        {v.name for v in target.free_variables(frozenset())}
+    quantified = rename_quantified(forall(dummies.values(), rule), target_vars)
     dummies = quantified.get_variables({})
     rule = quantified[1]
 
@@ -374,19 +386,16 @@ def try_rule(
         rule = cast(CompositeExpression, rule)
         # This should be enforced in the rename_quantifier call above.
         assert dummies.keys().isdisjoint(target.bound_variables())
-        assert dummies.keys().isdisjoint(target.free_variables(frozenset()))
-        # bound_in_target = target.bound_variables()
-        # if not dummies.isdisjoint(bound_in_target):
-        #     temp = rename_quant(forall(dummies, rule),
-        #                         bound_in_target)
-        #     dummies = temp.get_variables(frozenset())
-        #     rule = temp[1]
+        assert dummies.keys().isdisjoint({v.name for v in target.free_variables(
+            frozenset())})
 
         # So, we only want to apply this at the top level, i.e.
         # under all the "forall"s, but above everything else.
         result = set()
-        rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2] in dummies
-        lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1] in dummies
+        rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in \
+                           dummies
+        lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in \
+                           dummies
         if not rhs_is_bound_var:
             result = _recursive_match_and_substitute(dummies, rule[2], rule[1],
                                                      target)
@@ -394,6 +403,7 @@ def try_rule(
             result = result.union(
                 _recursive_match_and_substitute(dummies, rule[1], rule[2],
                                                 target))
+
 
         # Note that, a variable which appears in consequent, but not antecedant,
         # is a new variable were introducing.  If in dummies, it needs to be
@@ -403,23 +413,25 @@ def try_rule(
             if has_head(res, ForAll):
                 res = cast(CompositeExpression, res)
                 res_quantified_vars = res[0].get_variables_tree({})
-                vars_to_keep = {variable: typ for variable, typ in
-                                res_quantified_vars.items() if variable in
-                                res[1].free_variables(set())}
+                free_vars = res[1].free_variables(frozenset())
+                vars_to_keep = {
+                    variable for variable in res_quantified_vars.values()
+                    if variable in free_vars
+                }
                 if len(vars_to_keep) < len(res_quantified_vars):
                     if vars_to_keep:
                         res = forall(vars_to_keep, res[1])
                     else:
                         res = res[1]
 
-            common_vars = {variable: typ for variable, typ in dummies.items()
+            common_vars = {variable for name, variable in dummies.items()
                            if variable in res.free_variables(set())}
             if common_vars:
                 # Optimization: if the head of 'res' is already ForAll,
                 # just add these variables there, rather than creating a new
                 # ForAll.
                 if has_head(res, ForAll):
-                    common_vars.update(res[0].get_variables_tree({}))
+                    common_vars.update(res[0].get_variables_tree({}).values())
                     res = res[1]
                 res = forall(common_vars, res)
             result2.add(res)
@@ -429,7 +441,7 @@ def try_rule(
 
 
 def match_and_substitute(
-    dummies: Mapping[Variable, ExpressionType],
+    dummies: Mapping[str, Variable],
     antecedent: Expression,
     consequent: Expression,
     target: Expression,
@@ -453,7 +465,7 @@ def match_and_substitute(
 
 
 def _recursive_match_and_substitute(
-    dummies: Mapping[Variable, ExpressionType],
+    dummies: Mapping[str, Variable],
     antecedent: Expression,
     consequent: Expression,
     target: Expression,
@@ -485,14 +497,14 @@ def _recursive_match_and_substitute(
         free_vars = antecedent.free_variables(set()) | \
             consequent.free_variables(set())
 
-        if not free_vars.isdisjoint(quantified_vars.keys()):
+        if not free_vars.isdisjoint({v for v in quantified_vars.values()}):
             # This should have happened outside this recursive method.
             assert dummies.keys().isdisjoint(quantified_vars)
 
-            target = rename_quantified(target, free_vars)
+            target = rename_quantified(target, {v.name for v in free_vars})
             quantified_vars = target.get_variables({})
 
-            assert free_vars.isdisjoint(quantified_vars.keys())
+            assert free_vars.isdisjoint({v for v in quantified_vars.values()})
 
     for index, expr in enumerate(target):
         all_changed = _recursive_match_and_substitute(
@@ -519,10 +531,10 @@ def _substitute(
         # though.
         if isinstance(expr, Quantifier):
             old_vars = expr.get_variables_tree({})
-            new_vars = [(subs.get(v, v), t) for v, t in old_vars.items()]
+            new_vars = [subs.get(v, v) for v in old_vars.values()]
             # The new names shouldn't be the same as any of the old names ...
             # unless those old names are also being renamed.
-            assert len(frozenset(variable for variable, typ in new_vars)) == \
+            assert len(frozenset(variable.name for variable in new_vars)) == \
                    len(new_vars)
             return expr.__class__(new_vars)
 
@@ -565,10 +577,9 @@ def is_equality(expr: Expression) -> bool:
     return has_head(expr, Equal)
 
 
-def new_variable(old_variable: Variable, taken: Set[Variable]) -> Variable:
-    taken_names = {t.name for t in taken}
+def new_variable(old_variable: Variable, taken: Set[str]) -> Variable:
     new_name = old_variable.name
-    while new_name in taken_names:
+    while new_name in taken:
         new_name = "_" + new_name
     return var(new_name, old_variable.type())
 
@@ -586,37 +597,38 @@ def get_lhs(expr: Expression) -> Expression:
 
 
 def rename_quantified(
-    quantified: CompositeExpression, taken: Set[Variable]
+    quantified: CompositeExpression, taken: Set[str]
 ) -> CompositeExpression:
     """
     Given a quantified expression, renames any variables that are in "taken".
     """
     assert has_head(quantified, Quantifier)
 
-    ret = _rename_variables(quantified.get_variables({}).keys(),
+    ret = _rename_variables(frozenset(quantified.get_variables({}).values()),
                             taken,
                             quantified)
 
     return cast(CompositeExpression, ret)
 
 
-def _rename_variables(to_rename: Set[Variable], taken: Set[Variable],
+def _rename_variables(to_rename: Set[Variable], taken: Set[str],
                       expr: Expression) -> Expression:
     # Note: to_rename is ordered, let's preserve order.
-    to_rename = [variable for variable in to_rename if variable in taken]
+    to_rename = [variable for variable in to_rename if variable.name in taken]
     if not to_rename:
         return expr
 
     # Need to avoid any names already used in expr.
     # "|" is set union.
-    taken = set(taken | expr.bound_variables() | expr.free_variables(
-        frozenset()))
+    taken = set(taken | expr.bound_variables() |
+                {variable.name for variable in expr.free_variables(frozenset(
+                ))})
 
     # Decide on new variable names.
     subs = {}
-    for old_name in to_rename:
-        new_name = new_variable(old_name, taken)
-        taken.add(new_name)
-        subs[old_name] = new_name
+    for old_var in to_rename:
+        new_var = new_variable(old_var, taken)
+        taken.add(new_var.name)
+        subs[old_var] = new_var
 
     return _substitute(subs, expr)

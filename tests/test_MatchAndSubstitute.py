@@ -49,10 +49,12 @@ ANY = ExpressionType.ANY
 class TestMatch(unittest.TestCase):
 
     def test_node(self):
-        self.assertEqual(match({A: ANY}, A, A + B), {A: (A + B)})
+        self.assertEqual({A: (A + B)},
+                         match({'A': A}, A, A + B))
 
     def test_sum(self):
-        self.assertEqual(match({A: ANY}, A + B, C + B), {A: C})
+        self.assertEqual({A: C},
+                         match({'A': A}, A + B, C + B))
 
     def test_different_root(self):
         self.assertIsNone(match({}, A + B, A * B))
@@ -63,27 +65,29 @@ class TestMatch(unittest.TestCase):
         self.assertIsNone(match({}, A + B, sum_(A, B, C)))
 
     def test_simple(self):
-        self.assertEqual(
-            match({A: ANY}, ex("A in B"), ex("A + C in B")), {A: (A + C)}
+        self.assertEqual({A: (A + C)},
+                         match({'A': A}, ex("A in B"), ex("A + C in B")),
         )
 
     def test_dummy_appears_twice(self):
         self.assertEqual(
-            match({A: ANY}, ex("A in A"), ex("A + B in A + B")), {A: (A + B)}
+            match({'A': A}, ex("A in A"), ex("A + B in A + B")), {A: (A + B)}
         )
 
     def test_dummy_appears_twice2(self):
-        self.assertIsNone(match({A: ANY}, ex("A in A"), ex("A + B in A + C")))
+        self.assertIsNone(match({'A': A}, ex("A in A"), ex("A + B in A + "
+                                                               "C")))
 
     def test_two_dummies(self):
-        self.assertEqual(match({x: ANY, y: ANY}, x + y, A + B), {x: A, y: B})
+        self.assertEqual({x: A, y: B},
+                        match({'x': x, 'y': y}, x + y, A + B))
 
     def test_number_literal(self):
-        self.assertEqual(match({a: ANY}, a, num(1)), {a: num(1)})
+        self.assertEqual(match({'a': a}, a, num(1)), {a: num(1)})
 
     def test_matrix_literal(self):
         self.assertEqual(
-            match({a: ANY, b: ANY, c: ANY, d: ANY},
+            match({'a': a, 'b': b, 'c': c, 'd': d},
                   ex("[a b; c d]"), ex("[1 2; 3 4]")),
             {a: num(1), b: num(2), c: num(3), d: num(4)},
         )
@@ -132,20 +136,25 @@ class TestRenameQuantified(unittest.TestCase):
     def test_simple(self):
         self.assertEqual(
             forall(_a, ex('_a + 0 == _a')),
-            rename_quantified(forall(a, ex('a + 0 == a')), {a, b}))
+            rename_quantified(forall(a, ex('a + 0 == a')), {'a', 'b'}))
 
     def test_overlapping(self):
         self.assertEqual(
             forall((var('__a', OBJECT), _a), ex('_a * __a == 0')),
             rename_quantified(forall((a, _a), ex('_a * a == 0')),
-                              {a, M}))
+                              {'a', 'M'}))
 
     def test_hmm(self):
-        self.assertEqual(
-            forall((var('__a', OBJECT), var('___a', OBJECT)),
-                   ex("___a * __a == 0")),
-            rename_quantified(forall((a, _a), ex('_a * a == 0')),
-                              {a, _a}))
+        renamed = rename_quantified(forall((a, _a), ex('_a * a == 0')),
+                          {'a', '_a'})
+        # Order of renaming can be different in different runs, thanks to
+        # set() being non deterministic.  That's ok.
+        vars = (var('__a', OBJECT), var('___a', OBJECT))
+
+        self.assertIn(
+            renamed,
+            {forall(vars, ex("__a * ___a == 0")),
+             forall(vars, ex("___a * __a == 0"))})
 
 
 class TestIsRule(unittest.TestCase):
@@ -160,7 +169,7 @@ class TestIsRule(unittest.TestCase):
         self.assertTrue(is_rule(ex("(P and P ==> Q) ==> Q")))
 
     def test_forall_equals(self):
-        self.assertTrue(is_rule(forall((P, M), ex("P * M == M * P"))))
+        self.assertTrue(is_rule(forall((A, M), ex("A * M == M * A"))))
 
 
 class TestTryRule(unittest.TestCase):
@@ -275,8 +284,8 @@ class TestTryRule(unittest.TestCase):
     def test_no_match(self):
         self.assertEqual(
             try_rule(
-                forall(P, ex("P + Q == Q + P")),
-                ex("A and B"),
+                forall(A, ex("A + B == B + A")),
+                ex("P and Q"),
                 Direction.BACKWARD,
             ),  # backwards
             set(),

@@ -91,13 +91,13 @@ class Precedence(Enum):
 class Expression(abc.ABC):
     # We should consider getting rid of __mul__ and __add__.  They're used in
     # unit tests of the parser, but would be easy to replace with functions.
-    def __mul__(self, rhs: Expression) -> "CompositeExpression":
+    def __mul__(self, rhs: Expression) -> CompositeExpression:
         return CompositeExpression([Multiply(), self, rhs])
 
     # "+" already means "concatenate" for lists.  But concatenating
     # argument lists seems much rarer than constructing expressions
     # using "+", especially in abstract algebra.
-    def __add__(self, rhs: Expression) -> "CompositeExpression":
+    def __add__(self, rhs: Expression) -> CompositeExpression:
         return CompositeExpression([Sum(), self, rhs])
 
     # I considered doing the Sage thing and overriding __eq__ and other "rich
@@ -130,10 +130,14 @@ class Expression(abc.ABC):
 
         Free variables are the ones that are *not* covered by an forall or
         exists.  Their value / semantics comes from outside the
-        expression."""
+        expression.
+
+        Note that all occurrences must refer to the same object, so must all
+        have the same type.
+        """
         return frozenset()
 
-    def bound_variables(self) -> Set[Variable]:
+    def bound_variables(self) -> Set[str]:
         """Returns the set of bound variables in this (sub-)expression.
 
         Bound variables are any variables that are quantified over, either at
@@ -168,12 +172,12 @@ class Expression(abc.ABC):
         raise NotImplementedError  # pragma: no cover
 
     def bound_variables_tree(self, args: Sequence[Expression]) -> \
-            Set[Variable]:
+            Set[str]:
         raise NotImplementedError  # pragma: no cover
 
     def get_variables_tree(
-            self, other_dummies: Mapping[Variable, ExpressionType]
-    ) -> Mapping[Variable, ExpressionType]:
+            self, other_dummies: Mapping[str, Variable]
+    ) -> Mapping[str, Variable]:
         return {}  # pragma: no cover
 
     def declass(self):  # pragma: no cover
@@ -202,18 +206,15 @@ class Node(Expression, abc.ABC):
     def free_variables_tree(
             self, args: Sequence[Expression], exclude: Set[Variable]
     ) -> Set[Variable]:
-        return {
-            variable
-            for child in args
-            for variable in child.free_variables(exclude)
-        }
+        return frozenset().union(*(child.free_variables(exclude) for child in
+                                 args))
 
-    def bound_variables(self) -> Set[Variable]:
+    def bound_variables(self) -> Set[str]:
         return frozenset()
 
     def bound_variables_tree(
             self, args: Sequence[Expression]
-    ) -> Set[Variable]:
+    ) -> Set[str]:
         return frozenset().union(*(child.bound_variables() for child in args))
 
     def __eq__(self, other) -> bool:
@@ -281,9 +282,9 @@ class Variable(Node):
     def declass(self):  # pragma: no cover
         return self._name
 
-    def free_variables(self, exclude: Set[Variable]) -> Set[Variable]:
+    def free_variables(self, exclude: Set[str]) -> Set[Variable]:
         if self in exclude:
-            return set()
+            return frozenset()
         else:
             return {self}
 
@@ -336,12 +337,12 @@ class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
 
     # TODO: Have all missing methods forward to their first argument, so we
     # don't need the boilerplate here?
-    def get_variables(self, other_dummies: Mapping[Variable, ExpressionType]
-                      ) -> Mapping[Variable, ExpressionType]:
+    def get_variables(self, other_dummies: Mapping[str, Variable]
+                      ) -> Mapping[str, Variable]:
         """Only defined for Quantifiers, gets the variables quantified over."""
         return self[0].get_variables_tree(other_dummies)
 
-    def bound_variables(self) -> Set[Variable]:
+    def bound_variables(self) -> Set[str]:
         return self[0].bound_variables_tree(self[1:])
 
 
@@ -359,7 +360,7 @@ class Infix(Node):
     _name: str
     _name_with_spaces: str
     _precedence: Precedence
-    _type: ExpressionType # This the result type
+    _type: ExpressionType  # This the result type
 
     def __init__(self, name: str, precedence: Precedence,
                  typ: ExpressionType) -> None:
@@ -504,25 +505,24 @@ class Quantifier(Node):
     # include the variables quantified over, because those aren't
     # subexpressions (of bool or object type).
 
-    _variables_map: Mapping[Variable, ExpressionType]
+    _variables_map: Mapping[str, Variable]
 
-    def __init__(self,
-                 variables: Collection[tuple[Variable, ExpressionType]]):
+    def __init__(self, variables: Collection[Variable]):
         for variable in variables:
-            assert isinstance(variable, tuple)
+            assert isinstance(variable, Variable)
 
+        self._variables_map = {variable.name: variable for variable in
+                               variables}
         # Variable names must be unique.
-        assert len({variable for variable, typ in variables}) == len(variables)
-
-        self._variables_map = dict(variables)
+        assert len(self._variables_map) == len(variables)
 
     def type(self) -> ExpressionType:
         return ExpressionType.PROPOSITION
 
     def get_variables_tree(
-            self, other_dummies: Mapping[Variable, ExpressionType]
-    ) -> Mapping[Variable, ExpressionType]:
-        assert other_dummies.keys().isdisjoint(self._variables_map)
+            self, other_dummies: Mapping[str, Variable]
+    ) -> Mapping[str, Variable]:
+        assert other_dummies.keys().isdisjoint(self._variables_map.keys())
         return self._variables_map
 
     def free_variables_tree(
@@ -531,7 +531,7 @@ class Quantifier(Node):
         # If variable is already in `exclude`, it just shadows the outer one.
         # That's confusing, but not wrong.
         # "|" is union.
-        exclude = exclude | self.get_variables_tree({}).keys()
+        exclude = exclude | frozenset(self.get_variables_tree({}).values())
 
         return {
             variable
@@ -540,7 +540,7 @@ class Quantifier(Node):
         }
 
     def bound_variables_tree(self, args: Sequence[Expression]) -> \
-            Set[Variable]:
+            Set[str]:
         # Union the variables we're quantifying over, with those from
         # subexpressions.
         return self._variables_map.keys() | {
@@ -549,7 +549,20 @@ class Quantifier(Node):
             for variable in child.bound_variables()}
 
     def constructor_tree(self, args: Sequence[Expression]) -> None:
+        # For now, don't allow shadowing.  Although the semantics is
+        # consistent and it should all work out, it's too confusing for humans.
         assert args[0].bound_variables().isdisjoint(self._variables_map.keys())
+
+        # Make sure the variables in the body are the same type as what we
+        # have here in the Quantifier.
+        body_variables = args[0].free_variables(frozenset())
+        for variable in body_variables:
+            if variable.name in self._variables_map:
+                assert variable.type() == self._variables_map[
+                    variable.name].type()
+
+#        for variable in self._variables_map.values():
+#            assert variable in body_variables
 
     def __eq__(self, other: Quantifier) -> bool:
         return type(self) == type(other) and self._variables_map == \
@@ -561,16 +574,16 @@ class Quantifier(Node):
 
 class ForAll(Quantifier):
     def __repr__(self):
-        return r"\forall{" + ", ".join(str(variable) + ": " + str(typ.name)
-                                       for variable, typ in
+        return r"\forall{" + ", ".join(f"{name}: {variable.type().name}"
+                                       for name, variable in
                                        self._variables_map.items()) \
                + "}"
 
 
 class Exists(Quantifier):
     def __repr__(self):
-        return r"\exists{" + ", ".join(str(variable) + ": " + str(typ.name)
-                                       for variable, typ in
+        return r"\exists{" + ", ".join(f"{name}: {variable.type().name}"
+                                       for name, variable in
                                        self._variables_map.items()) + "}"
 
 
@@ -680,23 +693,17 @@ def num(value: NumberT) -> NumberLiteral:
     return NumberLiteral(value)
 
 
-def forall(variables: Iterable[tuple[Variable, ExpressionType]] |
-           Iterable[Variable] | Variable,
+def forall(variables: Iterable[Variable] | Variable,
            expr: Expression) \
         -> CompositeExpression:
     if isinstance(variables, Variable):
-        variables = [(variables, ExpressionType.ANY)]
-    elif all(isinstance(variable, Variable) for variable in variables):
-        variables = [(variable, ExpressionType.ANY) for variable in variables]
+        variables = [variables]
     return CompositeExpression([ForAll(variables), expr])
 
 
-def exists(variables: Iterable[tuple[Variable, ExpressionType]] |
-           Iterable[Variable] | Variable,
+def exists(variables: Iterable[Variable] | Variable,
            expr: Expression) \
         -> CompositeExpression:
     if isinstance(variables, Variable):
-        variables = [(variables, ExpressionType.ANY)]
-    elif all(isinstance(variable, Variable) for variable in variables):
-        variables = [(variable, ExpressionType.ANY) for variable in variables]
+        variables = [variables]
     return CompositeExpression([Exists(variables), expr])
