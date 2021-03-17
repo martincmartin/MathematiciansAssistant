@@ -33,7 +33,7 @@ import Parser
 from Expression import Expression, CompositeExpression, var, forall, ExpressionType
 
 # Save some typing
-NUMBER = ExpressionType.OBJECT
+OBJECT = ExpressionType.OBJECT
 
 
 import DeductionApril2018
@@ -872,45 +872,45 @@ def ex(st: str) -> Expression:
 
 def doit() -> None:
     # Helpful for testing / debugging.  I should remove this at some point.
-    a = var("a")
-    b = var("b")
-    c = var("c")
-    d = var("d")
+    a = var("a", OBJECT)
+    b = var("b", OBJECT)
+    c = var("c", OBJECT)
+    d = var("d", OBJECT)
 
-    p = var("p")
-    q = var("q")
-    r = var("r")
-    s = var("s")
+    p = var("p", OBJECT)
+    q = var("q", OBJECT)
+    r = var("r", OBJECT)
+    s = var("s", OBJECT)
 
-    x = var("x")
-    y = var("y")
-    z = var("z")
+    x = var("x", OBJECT)
+    y = var("y", OBJECT)
+    z = var("z", OBJECT)
 
     # Problem 0.1.2 from Dummit and Foote "Abstract Algebra."
     # M = (1  1; 0 1) (zero in lower left)
-    A = var("A")
-    M = var("M")
-    B = var("B")
-    P = var("P")
-    Q = var("Q")
-    R = var("R")
+    A = var("A", OBJECT)
+    M = var("M", OBJECT)
+    B = var("B", OBJECT)
+    P = var("P", OBJECT)
+    Q = var("Q", OBJECT)
+    R = var("R", OBJECT)
 
     # Rules for equals
     equals_reflexive: CompositeExpression = forall(x, ex("x == x"))
 
     # Multiplication is associative
     mult_associative: CompositeExpression = forall(
-        ((P, NUMBER), (Q, NUMBER), (R, NUMBER)),
+        (P, Q, R),
         ex("(P * Q) * R == P * (Q * R)")
     )
 
     # Multiplication distributes over addition
     left_dist: CompositeExpression = forall(
-        ((P, NUMBER), (Q, NUMBER), (R, NUMBER)),
+        (P, Q, R),
         ex("R * (P + Q) == R * P + R * Q")
     )
     right_dist: CompositeExpression = forall(
-        ((P, NUMBER), (Q, NUMBER), (R, NUMBER)),
+        (P, Q, R),
         ex("(P + Q) * R == P * R + Q * R")
     )
 
