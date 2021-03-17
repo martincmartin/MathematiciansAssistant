@@ -276,8 +276,8 @@ class Variable(Node):
         return self._type
 
     def set_type(self, typ: ExpressionType):
-        assert self._type is None or self._type == typ
-        self._type = typ
+        if self._type is None:
+            self._type = typ
 
     def declass(self):  # pragma: no cover
         return self._name
@@ -654,6 +654,21 @@ class NumberLiteral(Node):
     def declass(self):  # pragma: no cover
         return self._value
 
+    @property
+    def value(self) -> NumberT:
+        return self._value
+
+
+class SumSimplifier(Node):
+    arg_type = ExpressionType.OBJECT
+
+    def type(self) -> ExpressionType:
+        return ExpressionType.OBJECT
+
+    def simplify(self, args: Sequence[Expression]) -> NumberT:
+        assert all(isinstance(arg, NumberLiteral) for arg in args)
+        return sum(cast(NumberLiteral, arg).value for arg in args)
+
 
 def makefn(clz: builtins.type[Node], name=""):
     def maker(*args):
@@ -675,6 +690,7 @@ or_ = makefn(Or, "or_")
 not_ = makefn(Not, "not_")
 list_literal = makefn(ListLiteral, "list_literal")
 matrix_literal = makefn(MatrixLiteral)
+sum_simplifier = makefn(SumSimplifier)
 
 
 def var(name: str, typ: Optional[ExpressionType]) -> Variable:

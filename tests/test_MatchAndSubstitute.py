@@ -3,11 +3,14 @@ import unittest
 from MatchAndSubstitute import match, is_instance, is_rule, try_rule, \
     Direction, rename_quantified
 import Parser
-from Expression import var, sum_, num, forall, ExpressionType
+from Expression import var, sum_, num, forall, ExpressionType, equal, \
+    sum_simplifier
+
 # import typeguard
 
 OBJECT = ExpressionType.OBJECT
 PROPOSITION = ExpressionType.PROPOSITION
+NUMBER_LITERAL = ExpressionType.NUMBER_LITERAL
 
 A = var("A", OBJECT)
 _A = var("_A", OBJECT)
@@ -37,6 +40,11 @@ s = var("s", OBJECT)
 x = var("x", OBJECT)
 y = var("y", OBJECT)
 z = var("z", OBJECT)
+
+xl = var('x', NUMBER_LITERAL)
+yl = var('y', NUMBER_LITERAL)
+
+sum_simplifier_rule = forall((xl, yl), equal(xl + yl, sum_simplifier(xl, yl)))
 
 
 def ex(string):
@@ -392,6 +400,20 @@ class TestTryRule(unittest.TestCase):
                 Direction.FORWARD),
             frozenset()
         )
+
+    def test_sum_simplifier_basic(self):
+        self.assertEqual(
+            {num(12)},
+            try_rule(sum_simplifier_rule,
+                       ex("5 + 7"),
+                       Direction.FORWARD))
+
+    def test_sum_simplifier_three(self):
+        self.assertEqual(
+            {ex('12 + 23')},
+            try_rule(sum_simplifier_rule,
+                     ex("5 + 7 + 23"),
+                     Direction.FORWARD))
 
 
 if __name__ == "__main__":

@@ -549,7 +549,14 @@ def _substitute(
     # over variable shadows any instance in what we're trying to substitute.
     # Hmm.
     # Should I just disallow shadowing?
-    return CompositeExpression([_substitute(subs, e) for e in expr])
+    subed = [_substitute(subs, e) for e in expr]
+
+    head = subed[0]
+    if isinstance(head, SumSimplifier):
+        total = head.simplify(subed[1:])
+        return NumberLiteral(total)
+
+    return CompositeExpression(subed)
 
     # TODO: Handle "or" and "and", e.g. A <==> B should be the same as
     # A ==> B and B ==> A.
