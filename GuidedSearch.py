@@ -4,9 +4,13 @@
 
 from __future__ import annotations
 
+from collections.abc import MutableMapping
+
 from Expression import Variable, NumberLiteral, Node, Expression,\
     CompositeExpression
 from typing import cast, Optional
+
+from MatchAndSubstitute import try_rule, Direction, is_rule, match
 
 
 class Guidance:
@@ -136,3 +140,59 @@ class Guidance:
 # done by looking at how a structural match fails, e.g. when matching x + 7
 # with x + 0, the x and the + match, but the 7 fails.  But let's stick with
 # properties for now.
+
+class GuidedSimplify:
+    _start: Expression
+    # Map from expressions we can simplify, to rule used to perform the
+    # simplification.
+    _algorithms: MutableMapping[Expression, Expression]
+
+    def __init__(self, rules, start: Expression):
+        self._rules = rules
+        self._start = start
+        self._algorithms = {}
+
+    @property
+    def rules(self):
+        return self._rules
+
+    @property
+    def start(self):
+        return self._start
+
+    @property
+    def algorithms(self):
+        return self._algorithms
+
+    def solved(self, start: Expression, rule: Expression):
+        print(f'{start} SOLVED BY {rule}!')
+        self._algorithms[start] = rule
+
+    def solveme(self, start: Expression, goal: Expression):
+        self._start = start
+        return self.brute_force(goal)
+
+    # Use this to find which rule(s) simplify the start expression.
+    def brute_force(self, goal):
+        rules_to_use = set()
+        for rule in self._rules:
+            if not is_rule(rule):
+                continue
+            results = try_rule(rule, self._start, Direction.FORWARD)
+            for result in results:
+                print(f'{result} from {rule}')
+                if result == goal:
+                    self.solved(self._start, rule)
+                    return True
+                for known, next_rule in self._algorithms.items():
+                    subs = match({}, known, result)
+                    if subs is not None:
+                        self.solved(self._start, rule)
+                        return True
+        return False
+
+    # Now we realize we can solve x + 0, using additive_identity.  We have to
+    # realize that we can't solve x + 0 + 0 yet, but when we see it, we can
+    # use additive identity to turn it into something we can solve.  Hmm.
+    # Maybe for now, just have a list of literal expressions we can solve.
+

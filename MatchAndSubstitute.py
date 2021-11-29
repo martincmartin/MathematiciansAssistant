@@ -304,6 +304,7 @@ def try_rule(
     # now?
     #
     # So how does exists-elimination work with matching?  The exists statement
+    assert isinstance(rule, CompositeExpression)
     assert is_rule(rule)
     rule = cast(CompositeExpression, rule)
 

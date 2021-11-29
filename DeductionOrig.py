@@ -321,7 +321,7 @@ class Exprs(GoalExprsABC):
 class ProofState:
     goals: GoalExprsABC
     context: Exprs
-    _parent: Optional["ProofState"]
+    _parent: Optional["BruteForceProofState"]
     verbose: bool
 
     def __init__(
@@ -329,7 +329,7 @@ class ProofState:
         context: Sequence[ExprAndParent],
         goals: Sequence[ExprAndParent],
         goal_exprs_class: Type[GoalExprsABC],
-        parent: Optional["ProofState"],
+        parent: Optional["BruteForceProofState"],
         verbose: bool,
     ) -> None:
         self.verbose = verbose
@@ -718,7 +718,7 @@ def collect_path(start: ExprAndParent) -> List[Expression]:
     return ret
 
 
-# Should really be a member of ProofState.  Oh well.
+# Should really be a member of BruteForceProofState.  Oh well.
 def try_all_rules(
     non_rules: List[ExprAndParent],
     rules: List[ExprAndParent],

@@ -11,7 +11,7 @@
 # theorm proving, it can't do "regular" math, e.g. differentiate, find poles,
 # etc.  So, I think I need to add theorem proving to Mathematica or Sage.
 #
-# Mathematica is sucks as a general programming language.  It doesn't have
+# Mathematica sucks as a general programming language.  It doesn't have
 # structures.  You can simulate them, kinda, with an (unevaluted) function of
 # the form MyType[field1, field2].  Then you can make helper functions,
 # e.g. Field1[x_MyType] = (some way to get the first arg).  But its kind of
@@ -32,10 +32,6 @@ import Parser
 # from DeductionOrig import *
 from Expression import Expression, CompositeExpression, var, forall, ExpressionType
 
-# Save some typing
-OBJECT = ExpressionType.OBJECT
-
-
 import DeductionApril2018
 
 import sys
@@ -44,178 +40,9 @@ import sys
 
 from typing import Sequence
 
-"""Next step: a little high school algebra.
-It starts with two operators, + and *, and numbers (i.e. integers).
-Those can always be "collapsed" down to a single number.  So, by themselves,
-not very interesting.
+# Save some typing
+OBJECT = ExpressionType.OBJECT
 
-The next step is to add a single variable, say x.  Now what can you do?
-If you have arbitrary expressions formed from num, x, + and *, you end up
-with arbitrary polynomials of a single variable.  A good strategy to 
-understand them is to work only with first order polynomials, and see how far
-you can go with those.
-
-So how do we get the system to understand that it could & should always 
-collapse constant expressions?  e.g. that 2 + 3 should always (almost always?)
-be collapsed to 5.
-
-Because it simplifies later steps?  It's because of the goals we're trying to
-achieve.  It's goal seeking behavior.
-
-So what are the goals?  Maybe I should look at a good middle school algebra 
-textbook.
-
-One goal is simply solving equations.
-
-Another is finding properties, e.g. x and y intercepts and slopes, 
-etc.  Finding where two lines intersect.  Finding the area enclosed by 3 
-lines (to start, one or two can be the x or y axes, or just vertical or 
-horizontal lines.)
-
-"Solve this equation" is different from "prove this statement."  When 
-proving, you know the end statement.  When solving, you don't, although you 
-know the form of the statement, e.g. x = ?, but you don't know the value on 
-the RHS, that's the whole point.
-
-Also solving systems of equations, e.g.
-s + p = 48
-p = 2*s
-
-or
-
-w = m + 5
-w = 23
-
-There are also rational numbers: adding them (common denominator), multiplying 
-them (figuring out that you just multiply the numerators and denominators), 
-dividing them (invert and multiply).
-
-Let's start with solving equations of a single variable, e.g.
-
-5 * x + 3 + 9 * x == x.
-
-I think I'll need division for this.  Hmm.
-
-This means "find the value(s) I can substitute into the expression to make it 
-true."  Can we get it to figure out that changing it into the form "x == ?" 
-makes that easy?  I don't see a way.  If it just starts with substituting 
-arbitrary values, simplifying, and seeing if they're the same, there doesn't 
-seem to be a way to go from that to trying to manipulate the original 
-expression. [Note that it could be looking at properties of what it sees, 
-e.g. that when when x goes up, the LHS goes up.  Even look for patterns in 
-how much it goes up, e.g. every time we increase x by one, how much does the 
-LHS go up?]  Maybe there is, if you recognize that solving "x == 23" is easy?
-Because of the properties of ==, it's definition is basically "the two things on
-either side have to be exactly the same."  So once you have a literal on one 
-side, and a bare variable on the other, it's obvious what the set of 
-solutions are, that's pretty much the definition of ==.
-
-So, it could be phrased as "find the set of values that make this true,"
-and initially, the only operator we have that gives us such a set is ==.  
-Although we also need the idea of substituting and simplifying, since that's 
-the very definition of what we're trying to do.
-
-The substitution & checking truth value really is fundamental.  In the end, 
-you're asked "what value(s) of x make this true?"  And you understand that 
-e.g. if x is 5, then 3 * x is 15, and 3 * x == 20 is false, so 5 "doesn't 
-work".  In other words, in elementary school you're taught to add, subtract, 
-multiply and divide numbers.  The algebra is the "inverse problem" of 
-knowing the result you want, and determining one of the inputs to get you 
-that result: "what number do I put into the elementary school process to get 
-the desired output?"
-
-So substitution is fundamental.  But we need to not just treat it as a black 
-box, since then all we can do is substitute individual values.  Instead, 
-we need to reason about it: Given a problem like 5 * x + 3 + 9 * x == x, 
-what "tricks" can we pull to find solutions to x?
-
-Wikipedia has an interesting discussion on the history of algebra:
-
-https://en.wikipedia.org/wiki/History_of_algebra#Stages_of_algebra
-
-It started as equations expressed as full sentences.  It also started as 
-geometric.
-
-Euler, in his algebra text of 1770, defined it as "The science which teaches 
-how to determine unknown quantities by means of those that are known."
-
-"a 'cut and paste' geometry probably developed by surveyors as they figured 
-out ways to understand the division of land."
-
-Another technique is to try to approximate the answer, then look for 
-corrections to the approximation.  For example, in "STAGES IN THE HISTORY OF 
-ALGEBRA WITH IMPLICATIONS FOR TEACHING" by Katz (
-https://link.springer.com/article/10.1007%2Fs10649-006-9023-7), an early 
-Babylonian tablet solves the problem: the length plus the width of a 
-rectangle is 6 1/2, the area is 7 1/2.  Find the length and width.  This is 
-solving a quadratic equation. They 
-start by taking half the sum and squaring it, i.e. taking the average of the 
-length and width, and making a square out of it, that's an approximation to 
-the original rectangle.  The difference in area is ((length - width)/2)**2.  
-They prove this through a diagram, which could be turned into algebra using 
-distributive law.
-
-Looks like they would see the distributive law as a geometric thing: whenever
-they needed to use the fact (a + b)c = ac + bc, they would have a rectangle 
-with side length a + b, and other side c, and draw a line to divide it into 
-two smaller rectangles, with side lengths a & c vs b & c.
-
-I wonder if there was an implicitly dimensional analysis in all this: some 
-quantities were distances, others were areas, and e.g. you'd never add a 
-distance to an area.  Perhaps it was more than that, i.e. you'd start with 
-some diagram and only do things that made sense, e.g. you wouldn't add a 
-diagonal of a rectangle to its length, since what would be the use of that, 
-even though they're two lengths?
-
-The square root already exists in these descriptions, it's not considered part
-of algebra (fair enough).
-
-Perhaps square roots come from solving the simplest quadratic equation?  
-Because of all problems where you're given the area of a rectangle, 
-the subset where it's a square are the simplest?  Because there's only one 
-value, rather than separate length and width, no extra conditions needed to 
-define a useful problem, etc.
-
-Maybe pythagorean triples are related?
-
-English does have the word "square" separate from "rectangle" for example.
-
-Anyway, we start with an equation.  We look at it as something that can be 
-true or false for various values of the variable, i.e. as a function from 
-numbers to {True, False}.  Then we transform it in ways that preserve the 
-function, i.e. the set of solutions.  And, for now, we can say that the 
-only "ground truth" rule we know is that "x == [literal]" tells us the answer.
-That leaves substitution out of the picture, but it's a place to start.  It 
-also won't even work for quadratics where there's more than one answer; not 
-sure how we'll handle sqrt() and +-.
-
-The difference between "prove this" and "solve this" leads to differences in 
-the code.  In "prove this" we have a context with known true statements.  In 
-"solve this," at least for the simple case of linear systems, we only have a 
-set of equations that are equivalent to each other, i.e. that have the same 
-set of solutions.
-
-[How will we handle 0*x = 0?  I guess we punt for now?]
-
-So, (a) we don't have logical symbols (except maybe for external "forall"); 
-and, are all rules of the form "forall{a, b, ... z} f(a, b, ..., z) = 
-g(a, b, ... z)" where we can substitute an expression that matches one with 
-the other side?  That gets us the distributive law, and fun things like
-0 * x == 0.  It doesn't get us division though.  How do we handle 5 * x = 10?
-Multiply both sides of the equation by the same number / expression.  So, 
-we can't just modify 
-subexpressions on either side of the equals, in isolation.  We need things 
-like multiplying both sides of the equation.  And once we have that, we need 
-a way to say "a != 0".  Hmm.
-
-"""
-
-"""
-Random aside: we to be able to prove things are equal, but also that things 
-are not equal.  It needs an understanding that 5 != 6, and in general that 
-the integers are all distinct, i.e. that integers with different 
-representations and not equal.
-"""
 
 """
 In elementary school we learn how to add, subtract, multiply and divide.  
@@ -863,6 +690,17 @@ representation of "solvable expressions."  For example, if it's a bag of
 leaves and operators, we just look at leaves or operators not in the bag.  So
 let's just do that.
 
+**********  Nonstandard Analysis
+
+Terrance Tao talks about "a cheap version of nonstandard analysis"
+https://terrytao.wordpress.com/2012/04/02/a-cheap-version-of-nonstandard-analysis/
+
+"“cheap nonstandard analysis” aligns very well with traditional mathematics, in
+ which one often allows one’s objects to be parameterised by some external
+ parameter such as {{\bf n}}, which is then allowed to approach some limit such
+ as {\infty}."
+
+Might be worth looking into.
 """
 
 
@@ -900,18 +738,15 @@ def doit() -> None:
 
     # Multiplication is associative
     mult_associative: CompositeExpression = forall(
-        (P, Q, R),
-        ex("(P * Q) * R == P * (Q * R)")
+        (P, Q, R), ex("(P * Q) * R == P * (Q * R)")
     )
 
     # Multiplication distributes over addition
     left_dist: CompositeExpression = forall(
-        (P, Q, R),
-        ex("R * (P + Q) == R * P + R * Q")
+        (P, Q, R), ex("R * (P + Q) == R * P + R * Q")
     )
     right_dist: CompositeExpression = forall(
-        (P, Q, R),
-        ex("(P + Q) * R == P * R + Q * R")
+        (P, Q, R), ex("(P + Q) * R == P * R + Q * R")
     )
 
     # This is the definition of B:
@@ -925,9 +760,7 @@ def doit() -> None:
         general_rules: Sequence[Expression],
         verbosity: int = 1,
     ) -> None:
-        proof = DeductionApril2018.try_rules(
-            context, goal, general_rules, verbosity
-        )
+        proof = DeductionApril2018.try_rules(context, goal, general_rules, verbosity)
 
         if not proof:
             exit(1)
@@ -959,9 +792,7 @@ def doit() -> None:
     # i.e. within the context of this problem, they're like premeses.  The only
     # actual rules we have at the moment are modus ponens and 'equal substitution.'
 
-    rules = [
-        defB, left_dist, right_dist, mult_associative
-    ]  # , equals_reflexive]
+    rules = [defB, left_dist, right_dist, mult_associative]  # , equals_reflexive]
 
     if True:
         # Dummit and Foote, problem 0.1.2
@@ -981,7 +812,6 @@ def doit() -> None:
             general_rules,
             5,
         )
-
 
     # Now that we have matrix literals:
 
@@ -1043,7 +873,7 @@ def doit() -> None:
     # I definitely need ways to represent subgoals, etc. in my output of proofs.
 
     # Hey it proves this!
-    helper_0_1_1(ex('X == [1 1; 0 1]'))
+    helper_0_1_1(ex("X == [1 1; 0 1]"))
     # This one is false, and we don't have a way yet to prove that things are
     # false.
     # helper_0_1_1(ex("X == [1 1; 1 1]"))

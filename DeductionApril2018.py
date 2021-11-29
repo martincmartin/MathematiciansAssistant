@@ -1,6 +1,6 @@
 from Expression import Expression, CompositeExpression, has_head, Equal
 from MatchAndSubstitute import Direction, is_equality
-from ProofSystem import ExprAndParent, Exprs, ProofState
+from ProofSystem import ExprAndParent, Exprs, BruteForceProofState
 
 from typing import Sequence, List
 from typing import cast
@@ -17,11 +17,11 @@ def try_rules(
 
     assert verbosity >= 0
 
-    general = ProofState(
+    general = BruteForceProofState(
         [ExprAndParent(r, None) for r in general_rules], [], None, verbosity
     )
 
-    state = ProofState(
+    state = BruteForceProofState(
         [ExprAndParent(e, None) for e in context],
         [ExprAndParent(goal, None)],
         general,
@@ -74,7 +74,7 @@ def try_rules(
                 + ", target: "
                 + str(rhs.expr)
             )
-        temp_state = ProofState([lhs], [rhs], state, verbosity)
+        temp_state = BruteForceProofState([lhs], [rhs], state, verbosity)
         while True:
             print("########  Starting pass!")
             print("************************  context:")

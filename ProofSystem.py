@@ -18,12 +18,16 @@ This file contains basic stuff that should be independent of any
 particular search technique.
 """
 
+from __future__ import annotations
+
+from collections.abc import Mapping, MutableMapping, Sequence, \
+    MutableSequence, Iterator
+
 from Expression import Expression, CompositeExpression
 import MatchAndSubstitute
 from MatchAndSubstitute import is_rule, Direction, is_equality
 
 # from pprint import pprint
-from typing import List, Mapping, Dict, Sequence, Iterator
 from typing import Optional, Union
 from typing import TypeVar
 
@@ -50,14 +54,13 @@ class ExprAndParent:
 
     @property
     def parent(self) -> "ExprAndParent":
-        """Return type should really be the actual (derived) class of self."""
         return self._parent
 
     def __repr__(self) -> str:
         return repr(self._expr) + " & parent"
 
 
-def collect_path(start: ExprAndParent) -> List[Expression]:
+def collect_path(start: ExprAndParent) -> Sequence[Expression]:
     ret = []
     while start is not None:
         ret.append(start.expr)
@@ -68,15 +71,84 @@ def collect_path(start: ExprAndParent) -> List[Expression]:
 EAndP = TypeVar("EAndP", bound=ExprAndParent)
 
 
+# This implements a Natural Deduction style inference engine.
+# https://en.wikipedia.org/wiki/Natural_deduction
+#
+# Hilbert style was used in Principia Mathematica and is too hard to work
+# with in practice.
+#
+# Instead, we use Fitch-style calculus
+# https://en.wikipedia.org/wiki/Fitch_notation
+#
+# Essentially, every time we introduce a new assumption, we want to create a
+# new object that holds that assumption in it's context, then we drive
+# whatever we want in that object, then we can conclude "assumption => what
+# we derived" in the parent object.
+#
+# How to do simplification?  There's no single goal expression that we can ==
+# against to tell if we're done.  Also, this class kind of assumes all
+# context items are propositions, not expressions of type math object.
+
+
+class ProofState:
+    # Things equivalent to what we're trying to prove.  Proving any one of
+    # these means we're done with our proof.
+    goals: Mapping[Expression, EAndP]
+
+    # Things that follow from our assumptions.  If we can derive a goal from
+    # any of these, we're done.
+    context: Mapping[Expression, EAndP]
+
+    # Definitions of terms, introduced by substituting a generic witness for
+    # an existential qualifier.
+    definitions: Mapping[str, Expression]
+
+    _parent: Optional[ProofState]
+
+    verbosity: int
+
+    def __init__(self, parent: Optional[ProofState], verbosity: int):
+        self.verbosity = verbosity
+        self._parent = parent
+
+
+# TODO: I feel like this shouldn't be a separate class, but can somehow
+# naturally be handled in ProofState.  So, TODO is to generalize this.
+class SimplifyObject:
+    # Propositions, as given to us.  Hopefully a small set.
+    assumptions: Mapping[Expression, ExprAndParent]
+
+    # Propositions that follow from our assumptions.
+    context: Mapping[Expression, ExprAndParent]
+
+    start: Expression
+
+    # Simplifications of start, on the path
+    simplifications: MutableMapping[Expression, ExprAndParent]
+
+    verbosity: int
+
+    def __init__(self, start: Expression, assumptions: Sequence[Expression],
+                 verbosity: int):
+        self.assumptions = {e: ExprAndParent(e, None) for e in assumptions}
+        self.start = start
+        self.verbosity = verbosity
+        self.context = {}
+        self.simplifications = {}
+
+    def add_simplification(self, expr: ExprAndParent):
+        self.simplifications[expr.expr] = expr
+
+
 class Exprs(Mapping[Expression, EAndP]):
     """Mutable collection of ExprAndParent subclasses.  Given an Expr (that
     you just generated), can tell you whether it's already been generated,
     and gives you the ExprAndParent.  Also allows you to iterate over the
     exprs. """
-    _exprs_map: Dict[Expression, EAndP]
+    _exprs_map: MutableMapping[Expression, EAndP]
     _parent: Optional["Exprs"]
-    _exprs_rules: List[EAndP]
-    _exprs_non_rules: List[EAndP]
+    _exprs_rules: MutableSequence[EAndP]
+    _exprs_non_rules: MutableSequence[EAndP]
 
     def __init__(
         self, exprs: Sequence[EAndP], parent: Optional["Exprs"] = None
@@ -119,54 +191,58 @@ class Exprs(Mapping[Expression, EAndP]):
     def __repr__(self) -> str:
         return "\n".join(str(expr) for expr in self)
 
-    def immediate_rules(self) -> List[EAndP]:
+    def immediate_rules(self) -> Sequence[EAndP]:
         return self._exprs_rules
 
-    def immediate_non_rules(self) -> List[EAndP]:
+    def immediate_non_rules(self) -> Sequence[EAndP]:
         return self._exprs_non_rules
 
-    def all_rules(self) -> List[EAndP]:
+    def all_rules(self) -> Sequence[EAndP]:
         if self._parent:
             return self._parent.all_rules() + self._exprs_rules
         else:
             return self._exprs_rules
 
-    def all_exprs(self) -> List[EAndP]:
+    def all_exprs(self) -> Sequence[EAndP]:
         # This won't work in general, because when we add a rule, it will change
         # the index of all elements of exprs_list.  Oi.
         return self._exprs_non_rules + self._exprs_rules + (
             self._parent.all_exprs() if self._parent else []
         )
 
-    def equalities(self) -> List[EAndP]:
+    def equalities(self) -> Sequence[EAndP]:
         # Returns a List, rather than Sequence or Iterable, because Python
         # makes dealing with sequences slightly inconvenient: list's "+" only
         # takes other lists, not sequences.  So, concatenating a sequence
         # onto a list is done "temp = [ ... ]; temp.extend(seq); return
         # temp."  I'd rather have the clarity of just "return [ ... ] + seq".
-        parent_equalities = self.parent.equalities() if self._parent else []
+        parent_equalities = self._parent.equalities() if self._parent else []
         return [
             rule for rule in self._exprs_rules if is_equality(rule._expr)
         ] + parent_equalities
 
 
-# Why do Exprs and ProofState both have parents?  I think they must point to
-# the same thing, i.e. ProofState._parent.context == ProofState.context._parent.
+# BruteForceProofState, since it matches against all targets, is really part
+# of a brute force setup, so isn't as general or independent as we'd like.
 
-class ProofState:
+# Why do Exprs and BruteForceProofState both have parents?  I think they must
+# point to the same thing, i.e. BruteForceProofState._parent.context ==
+# BruteForceProofState.context._parent.
+
+class BruteForceProofState:
     goals: Exprs[EAndP]
     context: Exprs[EAndP]
     # This really needs to be a list, mapping variable to expression that
     # defines it.
     definitions: Exprs[EAndP]
-    _parent: Optional["ProofState"]
+    _parent: Optional["BruteForceProofState"]
     verbosity: int
 
     def __init__(
         self,
         context: Sequence[ExprAndParent],
         goals: Sequence[ExprAndParent],
-        parent: Optional["ProofState"],
+        parent: Optional["BruteForceProofState"],
         verbosity: int,
     ) -> None:
         self.verbosity = verbosity
@@ -217,7 +293,7 @@ class ProofState:
 
     def try_rule(
         self, rule: Expression, expr_and_parent_in: EAndP, direction: Direction
-    ) -> Union[bool, List[Expression]]:
+    ) -> Union[bool, Sequence[Expression]]:
         """Applies "rule" to "expr_and_parent_in", updating self with
         generated expressions.
 
@@ -289,8 +365,9 @@ class ProofState:
     # Should this go in a derived class, since its a (brute force) search
     # strategy?  Oh well.
     def try_all_rules(
-        self, non_rules: List[EAndP], rules: List[EAndP], direction: Direction
-    ) -> Union[bool, List[Expression]]:
+        self, non_rules: Sequence[EAndP], rules: Sequence[EAndP], direction:
+            Direction
+    ) -> Union[bool, Sequence[Expression]]:
         """calls try_rule() for each pair of rules and non_rules."""
         made_progress = False
         for cont in non_rules:
