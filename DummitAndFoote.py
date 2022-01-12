@@ -195,11 +195,12 @@ def doit() -> None:
     # false.
     # helper_0_1_1(ex("X == [1 1; 1 1]"))
 
+    sys.exit(0)
     # This one is true, since both sides evaluate to the zero matrix.  But we
     # can't discover this, because (a) we produce a ton of distracting crap,
     # and (b) we only ever work forward, never backward.
     helper_0_1_1(ex("X == [0 0; 0 0]"))
-    sys.exit(0)
+
     helper_0_1_1(ex("X == [1 1; 1 0]"))
     helper_0_1_1(ex("X == [1 0; 0 1]"))
     helper_0_1_1(ex("X == [0 1; 1 0]"))
