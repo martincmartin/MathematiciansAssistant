@@ -1,8 +1,8 @@
 from Expression import Expression, CompositeExpression, has_head, Equal
-from MatchAndSubstitute import Direction, is_equality
+from MatchAndSubstitute import Direction
 from ProofSystem import ExprAndParent, Exprs, BruteForceProofState
 
-from typing import Sequence, List
+from typing import Sequence
 from typing import cast
 
 
@@ -11,7 +11,7 @@ def try_rules(
     goal: Expression,
     general_rules: Sequence[Expression],
     verbosity: int = 0,
-) -> List[Expression]:
+) -> Sequence[Expression]:
     """context and context_rules are disjoint, all in context_rules satisfy
     is_rule(), whereas none of those in context do."""
 

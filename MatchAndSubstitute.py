@@ -21,8 +21,7 @@ from collections.abc import Set, Mapping, MutableMapping
 
 
 def match(
-    dummies: Mapping[str, Variable], pattern: Expression,
-        target: Expression
+    dummies: Mapping[str, Variable], pattern: Expression, target: Expression
 ) -> Optional[Mapping[Variable, Expression]]:
     """Matches "pattern" against "target"s root, i.e. not recursively.
 
@@ -44,15 +43,13 @@ def match(
     if isinstance(pattern, Node):
         if isinstance(pattern, Variable) and pattern.name in dummies:
             pattern = cast(Variable, pattern)
-            assert pattern not in target.free_variables(
-                frozenset(dummies.values()))
+            assert pattern not in target.free_variables(frozenset(dummies.values()))
             # Don't match variables against operators.  There's probably a
             # better way to express this, e.g. by introducing an Operator
             # type.  But for now, this will do.
             if isinstance(target, Node):
                 if not (
-                    isinstance(target, NumberLiteral)
-                    or isinstance(target, Variable)
+                    isinstance(target, NumberLiteral) or isinstance(target, Variable)
                 ):
                     return None
 
@@ -65,10 +62,14 @@ def match(
             # We need a better way of expressing the type hierarchy.  But for
             # now: a number literal is a math object, a proposition is NOT a
             # math object, and ANY matches anything.
-            if target_type == ExpressionType.ANY or \
-                    pattern.type() == target_type or \
-                    (pattern.type() == ExpressionType.OBJECT and
-                     target_type == ExpressionType.NUMBER_LITERAL):
+            if (
+                target_type == ExpressionType.ANY
+                or pattern.type() == target_type
+                or (
+                    pattern.type() == ExpressionType.OBJECT
+                    and target_type == ExpressionType.NUMBER_LITERAL
+                )
+            ):
                 return {pattern: target}
             else:
                 return None
@@ -116,14 +117,13 @@ def is_rule(expr: Expression) -> bool:
     if has_head(expr, ForAll):
         return is_rule(cast(CompositeExpression, expr)[1])
 
-    return has_head(expr, Implies) or has_head(expr, Equivalent) or has_head(
-        expr, Equal
+    return (
+        has_head(expr, Implies) or has_head(expr, Equivalent) or has_head(expr, Equal)
     )
 
 
 def is_instance(
-    expr: Expression, rule: Expression,
-    dummies: Mapping[str, Variable] = {}
+    expr: Expression, rule: Expression, dummies: Mapping[str, Variable] = {}
 ) -> Optional[Mapping[str, Variable]]:
     """Determines whether 'expr' is an instance of 'rule.'
 
@@ -137,17 +137,17 @@ def is_instance(
 
     if has_head(rule, ForAll):
         rule = cast(CompositeExpression, rule)
-        return is_instance(
-            expr, rule[1], {**dummies, **rule.get_variables(dummies)}
-        )
+        return is_instance(expr, rule[1], {**dummies, **rule.get_variables(dummies)})
 
     return match(dummies, rule, expr)
 
 
 def try_rule(
-        rule: Expression, target: Expression, direction: Direction,
-        dummies: Mapping[str, Variable] = {}) \
-        -> Set[Expression]:
+    rule: Expression,
+    target: Expression,
+    direction: Direction,
+    dummies: Mapping[str, Variable] = {},
+) -> Set[Expression]:
     """Apply "rule" to "target", returns any new expressions it generates.
 
     If rule is Implies, only applies it to "target"'s root.  If rule is
@@ -170,6 +170,8 @@ def try_rule(
     or the other type, but we don't.  try_rule implements
     substitution/rewriting for those.
     """
+
+    print(f"rule: {rule}, target: {target}, dummies: {dummies}")
 
     # So given x + 7 = 11, we want the system to think "hey if I could turn
     # the 7 into a zero that would be gucci."
@@ -309,7 +311,7 @@ def try_rule(
     rule = cast(CompositeExpression, rule)
 
     if dummies is None:
-        dummies = frozenset()
+        dummies = {}
 
     if has_head(rule, ForAll):
         # For "forall" we add the variables to dummies and recurse.
@@ -366,8 +368,10 @@ def try_rule(
     # output when we don't need to.
 
     # "|" means union.
-    target_vars = target.bound_variables() | \
-        {v.name for v in target.free_variables(frozenset())}
+    target_vars = target.bound_variables() | {
+        v.name for v in target.free_variables(frozenset())
+    }
+
     quantified = rename_quantified(forall(dummies.values(), rule), target_vars)
     dummies = quantified.get_variables({})
     rule = quantified[1]
@@ -387,24 +391,21 @@ def try_rule(
         rule = cast(CompositeExpression, rule)
         # This should be enforced in the rename_quantifier call above.
         assert dummies.keys().isdisjoint(target.bound_variables())
-        assert dummies.keys().isdisjoint({v.name for v in target.free_variables(
-            frozenset())})
+        assert dummies.keys().isdisjoint(
+            {v.name for v in target.free_variables(frozenset())}
+        )
 
         # So, we only want to apply this at the top level, i.e.
         # under all the "forall"s, but above everything else.
         result = set()
-        rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in \
-                           dummies
-        lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in \
-                           dummies
+        rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in dummies
+        lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in dummies
         if not rhs_is_bound_var:
-            result = _recursive_match_and_substitute(dummies, rule[2], rule[1],
-                                                     target)
+            result = _recursive_match_and_substitute(dummies, rule[2], rule[1], target)
         if not lhs_is_bound_var:
             result = result.union(
-                _recursive_match_and_substitute(dummies, rule[1], rule[2],
-                                                target))
-
+                _recursive_match_and_substitute(dummies, rule[1], rule[2], target)
+            )
 
         # Note that, a variable which appears in consequent, but not antecedant,
         # is a new variable were introducing.  If in dummies, it needs to be
@@ -416,7 +417,8 @@ def try_rule(
                 res_quantified_vars = res[0].get_variables_tree({})
                 free_vars = res[1].free_variables(frozenset())
                 vars_to_keep = {
-                    variable for variable in res_quantified_vars.values()
+                    variable
+                    for variable in res_quantified_vars.values()
                     if variable in free_vars
                 }
                 if len(vars_to_keep) < len(res_quantified_vars):
@@ -425,8 +427,11 @@ def try_rule(
                     else:
                         res = res[1]
 
-            common_vars = {variable for name, variable in dummies.items()
-                           if variable in res.free_variables(set())}
+            common_vars = {
+                variable
+                for name, variable in dummies.items()
+                if variable in res.free_variables(set())
+            }
             if common_vars:
                 # Optimization: if the head of 'res' is already ForAll,
                 # just add these variables there, rather than creating a new
@@ -495,8 +500,7 @@ def _recursive_match_and_substitute(
     if has_head(target, Quantifier):
         quantified_vars = target.get_variables({})
         # "|" is union
-        free_vars = antecedent.free_variables(set()) | \
-            consequent.free_variables(set())
+        free_vars = antecedent.free_variables(set()) | consequent.free_variables(set())
 
         if not free_vars.isdisjoint({v for v in quantified_vars.values()}):
             # This should have happened outside this recursive method.
@@ -519,9 +523,7 @@ def _recursive_match_and_substitute(
     return result
 
 
-def _substitute(
-    subs: Mapping[Variable, Expression], expr: Expression
-) -> Expression:
+def _substitute(subs: Mapping[Variable, Expression], expr: Expression) -> Expression:
     """Perform the substitutions given by subs on expr."""
 
     # What to do about unsubstituted dummies??  I guess just add a
@@ -535,8 +537,9 @@ def _substitute(
             new_vars = [subs.get(v, v) for v in old_vars.values()]
             # The new names shouldn't be the same as any of the old names ...
             # unless those old names are also being renamed.
-            assert len(frozenset(variable.name for variable in new_vars)) == \
-                   len(new_vars)
+            assert len(frozenset(variable.name for variable in new_vars)) == len(
+                new_vars
+            )
             return expr.__class__(new_vars)
 
         if isinstance(expr, Variable):
@@ -612,15 +615,16 @@ def rename_quantified(
     """
     assert has_head(quantified, Quantifier)
 
-    ret = _rename_variables(frozenset(quantified.get_variables({}).values()),
-                            taken,
-                            quantified)
+    ret = _rename_variables(
+        frozenset(quantified.get_variables({}).values()), taken, quantified
+    )
 
     return cast(CompositeExpression, ret)
 
 
-def _rename_variables(to_rename: Set[Variable], taken: Set[str],
-                      expr: Expression) -> Expression:
+def _rename_variables(
+    to_rename: Set[Variable], taken: Set[str], expr: Expression
+) -> Expression:
     # Note: to_rename is ordered, let's preserve order.
     to_rename = [variable for variable in to_rename if variable.name in taken]
     if not to_rename:
@@ -628,9 +632,11 @@ def _rename_variables(to_rename: Set[Variable], taken: Set[str],
 
     # Need to avoid any names already used in expr.
     # "|" is set union.
-    taken = set(taken | expr.bound_variables() |
-                {variable.name for variable in expr.free_variables(frozenset(
-                ))})
+    taken = set(
+        taken
+        | expr.bound_variables()
+        | {variable.name for variable in expr.free_variables(frozenset())}
+    )
 
     # Decide on new variable names.
     subs = {}
