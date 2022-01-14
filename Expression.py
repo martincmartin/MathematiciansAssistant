@@ -725,11 +725,11 @@ def var(name: str, typ: Optional[ExpressionType]) -> Variable:
     return Variable(name, typ)
 
 
-def iff(left, right):
+def iff(left: Expression, right: Expression):
     return equivalent(left, right)
 
 
-def in_(left, right):
+def in_(left: Expression, right: Expression):
     return element(left, right)
 
 
