@@ -1,5 +1,4 @@
 import unittest
-from typing import cast
 
 import Parser
 
@@ -15,7 +14,7 @@ from Expression import (
     and_,
     matrix_literal,
     sum_,
-    implies, CompositeExpression,
+    implies,
 )
 
 OBJECT = ExpressionType.OBJECT
@@ -39,7 +38,6 @@ def ex(string: str) -> Expression:
 
 
 class TestRepr(unittest.TestCase):
-
     def canonical(self, expr: str) -> None:
         assert isinstance(expr, str)
         self.assertEqual(repr(ex(expr)), expr)
@@ -56,8 +54,10 @@ class TestRepr(unittest.TestCase):
         self.canonical("not (P and Q)")
 
     def test_forall(self):
-        self.assertEqual(r"\forall{P: PROPOSITION}(P ==> P)",
-                         repr(forall(P, ex("P ==> P"))), )
+        self.assertEqual(
+            r"\forall{P: PROPOSITION}(P ==> P)",
+            repr(forall(P, ex("P ==> P"))),
+        )
 
         self.assertEqual(
             r"\forall{a: OBJECT, b: OBJECT}(a + b == b + a)",
@@ -66,8 +66,7 @@ class TestRepr(unittest.TestCase):
 
     def test_exists(self):
         self.assertEqual(
-            r"\exists{A: OBJECT}(A + A == A)",
-            repr(exists(A, ex("A + A == A")))
+            r"\exists{A: OBJECT}(A + A == A)", repr(exists(A, ex("A + A == A")))
         )
 
     def test_in(self):
@@ -82,9 +81,7 @@ class TestRepr(unittest.TestCase):
     def test_matrix_literal(self):
         self.assertEqual(
             repr(
-                matrix_literal(
-                    list_literal(num(5), a, b), list_literal(num(0), c, d)
-                )
+                matrix_literal(list_literal(num(5), a, b), list_literal(num(0), c, d))
             ),
             "[5  a  b; 0  c  d]",
         )
@@ -112,14 +109,11 @@ class TestRepr(unittest.TestCase):
 
 
 class TestFreeVars(unittest.TestCase):
-
     def test_basic(self) -> None:
         self.assertEqual(ex("a + b").free_variables(set()), {a, b})
 
     def test_quantifier(self) -> None:
-        self.assertEqual(
-            forall(P, ex("P or Q ==> Q")).free_variables(set()), {Q}
-        )
+        self.assertEqual(forall(P, ex("P or Q ==> Q")).free_variables(set()), {Q})
 
     def test_shadow_free(self) -> None:
         self.assertEqual(
@@ -140,15 +134,15 @@ class TestFreeVars(unittest.TestCase):
 
 class TestBoundVariables(unittest.TestCase):
     def test_basic(self) -> None:
-        self.assertEqual(forall(A, ex("A * M == M * A")).bound_variables(),
-                         {'A'})
+        self.assertEqual(forall(A, ex("A * M == M * A")).bound_variables(), {"A"})
 
     def test_multiple_with_same_name(self) -> None:
         self.assertEqual(
-            and_(forall(var('P', OBJECT), ex("P + P == P")),
-                 forall(var('P', PROPOSITION), ex("P or not P"))).
-            bound_variables(),
-            {'P'}
+            and_(
+                forall(var("P", OBJECT), ex("P + P == P")),
+                forall(var("P", PROPOSITION), ex("P or not P")),
+            ).bound_variables(),
+            {"P"},
         )
 
 
@@ -161,43 +155,31 @@ class TestFreeVariables(unittest.TestCase):
 
     def test_quantifier(self) -> None:
         self.assertEqual(
-            {a},
-            forall(b, ex('a + b == b + a')).free_variables(frozenset()))
+            {a}, forall(b, ex("a + b == b + a")).free_variables(frozenset())
+        )
 
     def test_shadow(self) -> None:
         self.assertEqual(
             {P},
-            and_(P,
-                 forall(P, ex('P or not P'))).free_variables(frozenset()),
+            and_(P, forall(P, ex("P or not P"))).free_variables(frozenset()),
         )
 
 
 class TestVariables(unittest.TestCase):
     def test_basic(self) -> None:
         # Only non-empty on quantifiers.
+        self.assertEqual(and_(P, Q).get_variables({}), {})
+
+        self.assertEqual(and_(P, forall(Q, ex("Q and Q"))).get_variables({}), {})
+
+        self.assertEqual(forall(P, ex("P ==> P")).get_variables({}), {"P": P})
+
         self.assertEqual(
-            and_(P, Q).get_variables({}),
-            {}
+            forall((P, Q), ex("P ==> Q")).get_variables({}), {"P": P, "Q": Q}
         )
 
         self.assertEqual(
-            and_(P, forall(Q, ex("Q and Q"))).get_variables({}),
-            {}
-        )
-
-        self.assertEqual(
-            forall(P, ex("P ==> P")).get_variables({}),
-            {'P': P}
-        )
-
-        self.assertEqual(
-            forall((P, Q), ex("P ==> Q")).get_variables({}),
-            {'P': P, 'Q': Q}
-        )
-
-        self.assertEqual(
-            forall(P, forall(Q, ex("P ==> Q"))).get_variables({}),
-            {'P': P}
+            forall(P, forall(Q, ex("P ==> Q"))).get_variables({}), {"P": P}
         )
 
 

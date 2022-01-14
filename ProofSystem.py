@@ -20,8 +20,7 @@ particular search technique.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, MutableMapping, Sequence, \
-    MutableSequence, Iterator
+from collections.abc import Mapping, MutableMapping, Sequence, MutableSequence, Iterator
 
 from Expression import Expression, CompositeExpression
 import MatchAndSubstitute
@@ -42,9 +41,7 @@ class ExprAndParent:
     _expr: Expression
     _parent: "ExprAndParent"
 
-    def __init__(
-        self, expr: Expression, parent: Optional["ExprAndParent"]
-    ) -> None:
+    def __init__(self, expr: Expression, parent: Optional["ExprAndParent"]) -> None:
         self._expr = expr
         self._parent = parent
 
@@ -128,8 +125,9 @@ class SimplifyObject:
 
     verbosity: int
 
-    def __init__(self, start: Expression, assumptions: Sequence[Expression],
-                 verbosity: int):
+    def __init__(
+        self, start: Expression, assumptions: Sequence[Expression], verbosity: int
+    ):
         self.assumptions = {e: ExprAndParent(e, None) for e in assumptions}
         self.start = start
         self.verbosity = verbosity
@@ -144,7 +142,8 @@ class Exprs(Mapping[Expression, EAndP]):
     """Mutable collection of ExprAndParent subclasses.  Given an Expr (that
     you just generated), can tell you whether it's already been generated,
     and gives you the ExprAndParent.  Also allows you to iterate over the
-    exprs. """
+    exprs."""
+
     _exprs_map: MutableMapping[Expression, EAndP]
     _parent: Optional["Exprs"]
     _exprs_rules: MutableSequence[EAndP]
@@ -157,8 +156,7 @@ class Exprs(Mapping[Expression, EAndP]):
         self._exprs_non_rules = [e for e in exprs if not is_rule(e.expr)]
         self._exprs_rules = [e for e in exprs if is_rule(e.expr)]
         self._exprs_map = {
-            expr.expr: expr
-            for expr in self._exprs_non_rules + self._exprs_rules
+            expr.expr: expr for expr in self._exprs_non_rules + self._exprs_rules
         }
 
     def add(self, expr_and_parent: EAndP) -> None:
@@ -171,9 +169,7 @@ class Exprs(Mapping[Expression, EAndP]):
     def __contains__(self, expr: Expression) -> bool:
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
-        return bool(
-            expr in self._exprs_map or (self._parent and expr in self._parent)
-        )
+        return bool(expr in self._exprs_map or (self._parent and expr in self._parent))
 
     def __getitem__(self, key: Expression) -> EAndP:
         if key in self._exprs_map:
@@ -206,8 +202,10 @@ class Exprs(Mapping[Expression, EAndP]):
     def all_exprs(self) -> Sequence[EAndP]:
         # This won't work in general, because when we add a rule, it will change
         # the index of all elements of exprs_list.  Oi.
-        return self._exprs_non_rules + self._exprs_rules + (
-            self._parent.all_exprs() if self._parent else []
+        return (
+            self._exprs_non_rules
+            + self._exprs_rules
+            + (self._parent.all_exprs() if self._parent else [])
         )
 
     def equalities(self) -> Sequence[EAndP]:
@@ -228,6 +226,7 @@ class Exprs(Mapping[Expression, EAndP]):
 # Why do Exprs and BruteForceProofState both have parents?  I think they must
 # point to the same thing, i.e. BruteForceProofState._parent.context ==
 # BruteForceProofState.context._parent.
+
 
 class BruteForceProofState:
     goals: Exprs[EAndP]
@@ -320,9 +319,7 @@ class BruteForceProofState:
             already_seen = self.goals
             targets = self.context
 
-        exprs = MatchAndSubstitute.try_rule(
-            rule, expr_and_parent_in.expr, direction
-        )
+        exprs = MatchAndSubstitute.try_rule(rule, expr_and_parent_in.expr, direction)
 
         if self.verbosity >= 10 or (self.verbosity > 0 and exprs):
             print(
@@ -334,9 +331,7 @@ class BruteForceProofState:
             if move in already_seen:
                 continue
 
-            move_and_parent = expr_and_parent_in.__class__(
-                move, expr_and_parent_in
-            )
+            move_and_parent = expr_and_parent_in.__class__(move, expr_and_parent_in)
 
             # Ideally, in the case of P in B -> P * M == M * P, we'd
             # recognize that the latter is equivalent to the former, and is
@@ -352,9 +347,7 @@ class BruteForceProofState:
                         move_and_parent
                     )
                 else:
-                    return list(
-                        reversed(collect_path(move_and_parent))
-                    ) + collect_path(
+                    return list(reversed(collect_path(move_and_parent))) + collect_path(
                         found
                     )
             already_seen.add(move_and_parent)
@@ -365,8 +358,7 @@ class BruteForceProofState:
     # Should this go in a derived class, since its a (brute force) search
     # strategy?  Oh well.
     def try_all_rules(
-        self, non_rules: Sequence[EAndP], rules: Sequence[EAndP], direction:
-            Direction
+        self, non_rules: Sequence[EAndP], rules: Sequence[EAndP], direction: Direction
     ) -> Union[bool, Sequence[Expression]]:
         """calls try_rule() for each pair of rules and non_rules."""
         made_progress = False

@@ -12,31 +12,35 @@ import unittest
 # unittest.TestCase.run = lambda self, *args, **kw: unittest.TestCase.debug(self)
 # python3 -m pdb -c continue test_MA.py
 
-from Expression import var
+from Expression import var, ExpressionType
 import Parser
 from DeductionOrig import path_length
 
 # from pprint import pprint
 
-P = var("P")
-Q = var("Q")
-R = var("R")
-A = var("A")
-B = var("B")
-M = var("M")
-
-a = var("a")
-b = var("b")
-c = var("c")
-d = var("d")
-
-p = var("p")
-q = var("q")
-r = var("r")
-s = var("s")
+# Save some typing
+OBJECT = ExpressionType.OBJECT
 
 
-def ex(string):
+P = var("P", OBJECT)
+Q = var("Q", OBJECT)
+R = var("R", OBJECT)
+A = var("A", OBJECT)
+B = var("B", OBJECT)
+M = var("M", OBJECT)
+
+# a = var("a")
+# b = var("b")
+# c = var("c")
+# d = var("d")
+
+# p = var("p")
+# q = var("q")
+# r = var("r")
+# s = var("s")
+
+
+def ex(string: str):
     return Parser.parse(string)
 
 

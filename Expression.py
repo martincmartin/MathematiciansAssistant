@@ -88,7 +88,10 @@ class Precedence(Enum):
 
 
 class Expression(abc.ABC):
-    arg_type: Optional[ExpressionType] = None
+    @abc.abstractmethod
+    def arg_type(self) -> ExpressionType:
+        pass
+
     # We should consider getting rid of __mul__ and __add__.  They're used in
     # unit tests of the parser, but would be easy to replace with functions.
     def __mul__(self, rhs: Expression) -> CompositeExpression:
@@ -219,7 +222,7 @@ class Node(Expression, abc.ABC):
         return hash(type(self))
 
     # Handy utility function used by repr_tree in some children.
-    def wrap(self, child_repr_and_precedence) -> str:
+    def wrap(self, child_repr_and_precedence: tuple[str, Precedence]) -> str:
         rep, child_prec = child_repr_and_precedence
         return rep if child_prec > self._precedence else "(" + rep + ")"
 
@@ -240,6 +243,9 @@ class Variable(Node):
     def __init__(self, name: str, typ: Optional[ExpressionType]) -> None:
         self._name = name
         self._type = typ
+
+    def arg_type(self) -> ExpressionType:
+        assert False
 
     @property
     def name(self) -> str:
@@ -310,10 +316,11 @@ class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
         # Hack: fill in variable type based on context of how it is used.
         for child in children:
             if isinstance(child, Variable):
-                typ = type(children[0]).arg_type
-                assert typ is not None
-                child.set_type(typ)
+                child.set_type(children[0].arg_type())
         children[0].constructor_tree(children[1:])
+
+    def arg_type(self) -> ExpressionType:
+        assert False
 
     # I'm using inheritance instead of composition.  Oh well.
     def repr_and_precedence(self) -> tuple[str, Precedence]:
@@ -380,6 +387,8 @@ class Infix(Node):
         return self._type
 
 
+# I think Prefix nodes need to be unary, i.e. have only one argument?  Looks
+# like repr_tree enforces this.
 class Prefix(Node):
     _name: str
     _name_with_space: str
@@ -405,42 +414,48 @@ class Prefix(Node):
 
 
 class Multiply(Infix):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):
         Infix.__init__(self, "*", Precedence.MULTIPLICATIVE, ExpressionType.OBJECT)
 
 
 class Divide(Infix):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):  # pragma: no cover
         Infix.__init__(self, "/", Precedence.MULTIPLICATIVE, ExpressionType.OBJECT)
 
 
 class Sum(Infix):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):
         Infix.__init__(self, "+", Precedence.ADDITIVE, ExpressionType.OBJECT)
 
 
 class Difference(Infix):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):  # pragma: no cover
         Infix.__init__(self, "-", Precedence.ADDITIVE, ExpressionType.OBJECT)
 
 
 class Element(Infix):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):
         Infix.__init__(self, r"\in", Precedence.COMPARISON, ExpressionType.PROPOSITION)
 
 
 class Equivalent(Infix):
-    arg_type = ExpressionType.PROPOSITION
+    def arg_type(self):
+        return ExpressionType.PROPOSITION
 
     def __init__(self):
         Infix.__init__(
@@ -449,7 +464,8 @@ class Equivalent(Infix):
 
 
 class Implies(Infix):
-    arg_type = ExpressionType.PROPOSITION
+    def arg_type(self):
+        return ExpressionType.PROPOSITION
 
     def __init__(self):
         Infix.__init__(
@@ -458,35 +474,40 @@ class Implies(Infix):
 
 
 class And(Infix):
-    arg_type = ExpressionType.PROPOSITION
+    def arg_type(self):
+        return ExpressionType.PROPOSITION
 
     def __init__(self):
         Infix.__init__(self, "and", Precedence.AND_OR, ExpressionType.PROPOSITION)
 
 
 class Or(Infix):
-    arg_type = ExpressionType.PROPOSITION
+    def arg_type(self):
+        return ExpressionType.PROPOSITION
 
     def __init__(self):
         Infix.__init__(self, "or", Precedence.AND_OR, ExpressionType.PROPOSITION)
 
 
 class Not(Prefix):
-    arg_type = ExpressionType.PROPOSITION
+    def arg_type(self):
+        return ExpressionType.PROPOSITION
 
     def __init__(self):
         Prefix.__init__(self, "not", Precedence.NEGATION, ExpressionType.PROPOSITION)
 
 
 class Equal(Infix):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):
         Infix.__init__(self, "==", Precedence.COMPARISON, ExpressionType.PROPOSITION)
 
 
 class Quantifier(Node):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     # We want CompositeExpression to
     # essentially be a function call, i.e. that the first child is the function,
@@ -586,7 +607,8 @@ class Exists(Quantifier):
 
 
 class ListLiteral(Node):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):
         pass
@@ -602,7 +624,8 @@ class ListLiteral(Node):
 
 
 class MatrixLiteral(Node):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def __init__(self):
         pass
@@ -631,13 +654,13 @@ class MatrixLiteral(Node):
 class NumberLiteral(Node):
     _value: NumberT
 
-    def __init__(self, value):
+    def __init__(self, value: NumberT):
         self._value = value
 
     def __repr__(self):
         return repr(self._value)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object):
         return isinstance(other, NumberLiteral) and self._value == other._value
 
     def __hash__(self):
@@ -653,9 +676,16 @@ class NumberLiteral(Node):
     def value(self) -> NumberT:
         return self._value
 
+    def arg_type(self):
+        return ExpressionType.NUMBER_LITERAL
 
+
+# All arguments must be number literals.  This node just represents the sum of
+# all its arguments.  This is used for simplifying, i.e. 3 + 8 can be
+# simplified, but 3 + x can't.
 class SumSimplifier(Node):
-    arg_type = ExpressionType.OBJECT
+    def arg_type(self):
+        return ExpressionType.OBJECT
 
     def type(self) -> ExpressionType:
         return ExpressionType.OBJECT
@@ -664,8 +694,11 @@ class SumSimplifier(Node):
         assert all(isinstance(arg, NumberLiteral) for arg in args)
         return sum(cast(NumberLiteral, arg).value for arg in args)
 
+    def __repr__(self):
+        return "SumSimplifier"
 
-def makefn(clz: builtins.type[Node], name=""):
+
+def makefn(clz: builtins.type[Node], name: str = ""):
     def maker(*args):
         return CompositeExpression([clz()] + list(args))
 
