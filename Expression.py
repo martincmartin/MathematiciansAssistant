@@ -181,7 +181,7 @@ class Expression(abc.ABC):
     ) -> Mapping[str, Variable]:
         return {}  # pragma: no cover
 
-    def declass(self):  # pragma: no cover
+    def declass(self) -> object:  # pragma: no cover
         return self
 
 
@@ -232,7 +232,7 @@ class Node(Expression, abc.ABC):
     # un-define a method in a subclass that's defined in a superclass.
     __repr__ = None
 
-    def declass(self) -> str:  # pragma: no cover
+    def declass(self) -> object:  # pragma: no cover
         return type(self).__name__
 
 
@@ -254,7 +254,7 @@ class Variable(Node):
     def __repr__(self) -> str:
         return self._name
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         # Physicists like to use two different variables with the same name
         # in the same expression, like "i" for both the imaginary unit and
         # indexing a vector/matrix.  They don't always distinguish based on
@@ -331,7 +331,7 @@ class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
         return self[0].type()
 
     # Call pprint.pprint() on result.
-    def declass(self) -> list[Expression]:  # pragma: no cover
+    def declass(self):  # pragma: no cover
         """Intended for debugging, shows the structure of the tree, even for
         invalid trees.
         """
