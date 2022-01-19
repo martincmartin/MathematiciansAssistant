@@ -10,7 +10,7 @@ import token
 
 class Parser:
     type: Union[int, str]
-    token: TokenInfo
+    token: Optional[TokenInfo]
     tokens: List[TokenInfo]
 
     keywords = {"in", "and", "or", "not", "==>", "<==>", "forall", "exists"}
@@ -65,18 +65,15 @@ class Parser:
             ):
                 # Create a single ==> token.
                 self.tokens.append(
-                    type(tok)(
-                        type=NAME, string="==>", start=None, end=None, line=None
-                    )
+                    type(tok)(type=NAME, string="==>", start=None, end=None, line=None)
                 )
                 skip = 1
-            elif tok.exact_type == LESSEQUAL and index + 2 < len(
-                tokens
-            ) and tokens[
-                index + 1
-            ].exact_type == EQUAL and tokens[
-                index + 2
-            ].exact_type == GREATER:
+            elif (
+                tok.exact_type == LESSEQUAL
+                and index + 2 < len(tokens)
+                and tokens[index + 1].exact_type == EQUAL
+                and tokens[index + 2].exact_type == GREATER
+            ):
                 # Create a single <==> token.
                 self.tokens.append(
                     type(tok)(

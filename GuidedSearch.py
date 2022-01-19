@@ -6,8 +6,7 @@ from __future__ import annotations
 
 from collections.abc import MutableMapping
 
-from Expression import Variable, NumberLiteral, Node, Expression,\
-    CompositeExpression
+from Expression import Variable, NumberLiteral, Node, Expression, CompositeExpression
 from typing import cast, Optional
 
 from MatchAndSubstitute import try_rule, Direction, is_rule, match
@@ -31,7 +30,7 @@ class Guidance:
         if type(node) in recognized:
             return True
         # For now, hack that LHS can contain 'x'.
-        return lhs and isinstance(node, Variable) and node.name == 'x'
+        return lhs and isinstance(node, Variable) and node.name == "x"
 
     def not_matching(self, other: Expression) -> Optional[Node]:
         if isinstance(other, Node):
@@ -44,6 +43,7 @@ class Guidance:
             if x:
                 return x
         return None
+
 
 # So now, I need to take a goal, find which nodes I need to get rid of.  Then
 # find a rule which addresses those nodes.
@@ -141,6 +141,7 @@ class Guidance:
 # with x + 0, the x and the + match, but the 7 fails.  But let's stick with
 # properties for now.
 
+
 class GuidedSimplify:
     _start: Expression
     # Map from expressions we can simplify, to rule used to perform the
@@ -165,22 +166,22 @@ class GuidedSimplify:
         return self._algorithms
 
     def solved(self, start: Expression, rule: Expression):
-        print(f'{start} SOLVED BY {rule}!')
+        print(f"{start} SOLVED BY {rule}!")
         self._algorithms[start] = rule
 
-    def solveme(self, start: Expression, goal: Expression):
+    def solveme(self, start: Expression, goal: Expression) -> bool:
         self._start = start
         return self.brute_force(goal)
 
     # Use this to find which rule(s) simplify the start expression.
-    def brute_force(self, goal):
+    def brute_force(self, goal: Expression) -> bool:
         rules_to_use = set()
         for rule in self._rules:
             if not is_rule(rule):
                 continue
             results = try_rule(rule, self._start, Direction.FORWARD)
             for result in results:
-                print(f'{result} from {rule}')
+                print(f"{result} from {rule}")
                 if result == goal:
                     self.solved(self._start, rule)
                     return True
@@ -195,4 +196,3 @@ class GuidedSimplify:
     # realize that we can't solve x + 0 + 0 yet, but when we see it, we can
     # use additive identity to turn it into something we can solve.  Hmm.
     # Maybe for now, just have a list of literal expressions we can solve.
-

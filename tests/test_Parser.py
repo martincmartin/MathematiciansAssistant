@@ -12,10 +12,24 @@ import unittest
 # unittest.TestCase.run = lambda self, *args, **kw: unittest.TestCase.debug(self)
 # python3 -m pdb -c continue test_Parser.py
 
-from Expression import var, and_, or_, not_, implies, equal, in_, iff, \
-    matrix_literal, list_literal, num, ExpressionType
+from Expression import (
+    var,
+    and_,
+    or_,
+    not_,
+    implies,
+    equal,
+    in_,
+    iff,
+    matrix_literal,
+    list_literal,
+    num,
+    Expression
+    ExpressionType,
+)
 
 import Parser
+
 # from DeductionHelpers import *
 import tokenize
 
@@ -46,12 +60,11 @@ r = var("r", OBJECT)
 s = var("s", OBJECT)
 
 
-def ex(string):
+def ex(string: str) -> Expression:
     return Parser.parse(string)
 
 
 class TestParser(unittest.TestCase):
-
     def test_malformed(self):
         with self.assertRaises(SyntaxError):
             ex("+")
@@ -167,7 +180,6 @@ class TestParser(unittest.TestCase):
         # -5 would be parsed as a unary minus applied to num(5), but we don't
         # have unary minus yet.
         # self.assertEqual(ex('-5'), minus(num(5)))
-
 
 
 if __name__ == "__main__":  # pragma: no cover

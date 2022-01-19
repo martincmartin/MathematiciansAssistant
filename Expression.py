@@ -52,10 +52,17 @@ import builtins
 from enum import Enum, unique
 from functools import total_ordering
 
-from typing import Union, cast, Optional
+from typing import TypeVar, Union, cast, Optional
 from collections.abc import Sequence, Set, Iterable, Hashable, Mapping, Collection
 
 NumberT = Union[float, int]
+
+
+T = TypeVar("T")
+
+
+def union(input: Iterable[Set[T]]) -> Set[T]:
+    return cast(frozenset[T], frozenset()).union(*input)
 
 
 class ExpressionType(Enum):
@@ -207,13 +214,13 @@ class Node(Expression, abc.ABC):
     def free_variables_tree(
         self, args: Sequence[Expression], exclude: Set[Variable]
     ) -> Set[Variable]:
-        return frozenset().union(*(child.free_variables(exclude) for child in args))
+        return union(child.free_variables(exclude) for child in args)
 
     def bound_variables(self) -> Set[str]:
         return frozenset()
 
     def bound_variables_tree(self, args: Sequence[Expression]) -> Set[str]:
-        return frozenset().union(*(child.bound_variables() for child in args))
+        return union(child.bound_variables() for child in args)
 
     def __eq__(self, other: object) -> bool:
         return isinstance(self, type(other))
