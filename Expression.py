@@ -705,8 +705,8 @@ class SumSimplifier(Node):
         return "SumSimplifier"
 
 
-def makefn(clz: builtins.type[Node], name: str = ""):
-    def maker(*args):
+def makefn(clz: builtins.type[Expression], name: str = ""):
+    def maker(*args: Expression):
         return CompositeExpression([clz()] + list(args))
 
     maker.__name__ = name if name else clz.__name__.lower()
