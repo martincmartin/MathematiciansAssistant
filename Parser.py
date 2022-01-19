@@ -18,8 +18,8 @@ class Parser:
     class_map = {
         STAR: Multiply,
         SLASH: Divide,
-        PLUS: Sum,
-        MINUS: Difference,
+        PLUS: Sum,  # We only use class_map for binary functions
+        MINUS: Difference,  # We only use class_map for binary functions
         LESS: Equal,  # TODO
         GREATER: Equal,  # TODO
         EQEQUAL: Equal,
@@ -151,11 +151,16 @@ class Parser:
 
         raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
 
+    def unary(self) -> Expression:
+        if self.accept(MINUS):  # TODO: Plus
+            return CompositeExpression([Negative(), self.unary()])
+        return self.atom()
+
     def multiplicative(self) -> Expression:
-        e = self.atom()
+        e = self.unary()
         while self.accept(STAR, SLASH):
             clz = self.class_map[self.token.exact_type]
-            e = CompositeExpression([clz(), e, self.atom()])
+            e = CompositeExpression([clz(), e, self.unary()])
         return e
 
     def additive(self) -> Expression:

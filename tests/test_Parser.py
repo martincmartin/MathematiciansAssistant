@@ -19,12 +19,14 @@ from Expression import (
     not_,
     implies,
     equal,
+    negative,
+    difference,
     in_,
     iff,
     matrix_literal,
     list_literal,
     num,
-    Expression
+    Expression,
     ExpressionType,
 )
 
@@ -100,6 +102,9 @@ class TestParser(unittest.TestCase):
 
     def test_add_mult4(self):
         self.assertEqual(ex("A * (B + C)"), A * (B + C))
+
+    def test_subtract(self):
+        self.assertEqual(ex("a - b"), difference(a, b))
 
     def test_compare(self):
         self.assertEqual(
@@ -180,6 +185,11 @@ class TestParser(unittest.TestCase):
         # -5 would be parsed as a unary minus applied to num(5), but we don't
         # have unary minus yet.
         # self.assertEqual(ex('-5'), minus(num(5)))
+
+    def test_unary_minus(self):
+        self.assertEqual(ex("- a"), negative(a))
+        self.assertEqual(ex("a--b"), difference(a, negative(b)))
+        self.assertEqual(ex("a---b"), difference(a, negative(negative(b))))
 
 
 if __name__ == "__main__":  # pragma: no cover

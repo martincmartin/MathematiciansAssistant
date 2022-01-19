@@ -87,8 +87,9 @@ class Precedence(Enum):
     COMPARISON = 5
     ADDITIVE = 6
     MULTIPLICATIVE = 7
-    FUNCALL = 8
-    ATOM = 9
+    UNARY = 8
+    FUNCALL = 9
+    ATOM = 10
 
     def __lt__(self, other: Precedence) -> bool:
         return self.value < other.value
@@ -452,6 +453,14 @@ class Difference(Infix):
         Infix.__init__(self, "-", Precedence.ADDITIVE, ExpressionType.OBJECT)
 
 
+class Negative(Prefix):
+    def arg_type(self):
+        return ExpressionType.OBJECT
+
+    def __init__(self):
+        Prefix.__init__(self, "-", Precedence.UNARY, ExpressionType.OBJECT)
+
+
 class Element(Infix):
     def arg_type(self):
         return ExpressionType.OBJECT
@@ -716,6 +725,8 @@ def makefn(clz: builtins.type[Expression], name: str = ""):
 # You can use these handy functions to construct nodes, or the Parser below.
 multiply = makefn(Multiply)
 sum_ = makefn(Sum)
+difference = makefn(Difference)
+negative = makefn(Negative)
 equal = makefn(Equal)
 implies = makefn(Implies)
 equivalent = makefn(Equivalent)
