@@ -152,7 +152,13 @@ class Parser:
         raise SyntaxError("Unexpected token: " + repr(self.tokens[0]))
 
     def unary(self) -> Expression:
-        if self.accept(MINUS):  # TODO: Plus
+        # Should I also have unary plus?  On the one hand, it doesn't do
+        # anything, i.e. + x == x, at least for all the math I know.  And C
+        # didn't have it originally, it was introduced as part of ANSI C.
+        # On the other hand, all common programming languages seem to have it,
+        # and it can be useful for demonstrating things, e.g. saying
+        # "- - x == + x".  Well, punt for now.
+        if self.accept(MINUS):
             return CompositeExpression([Negative(), self.unary()])
         return self.atom()
 
