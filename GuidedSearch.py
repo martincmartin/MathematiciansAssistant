@@ -161,6 +161,10 @@ class GuidedSimplify:
     def start(self):
         return self._start
 
+    @start.setter
+    def start(self, value: Expression):
+        self._start = value
+
     @property
     def algorithms(self):
         return self._algorithms
