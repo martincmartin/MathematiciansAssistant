@@ -21,7 +21,7 @@ x = var("x", OBJECT)
 # because there's no constructive way to turn it into a function.  In group
 # theory, Lean takes the unary minus function as an axiom.  Here we take the 2
 # arg ones as axiom, since that's more natural to most middle schoolers.
-subtraction = forall([a, b, c], ex("a - b == c <==> a = b + c"))
+subtraction = forall([a, b, c], ex("a - b == c <==> a == b + c"))
 
 # additive_inverse_right: CompositeExpression = forall(a, exists(b, ex("a + b == 0")))
 
@@ -42,7 +42,7 @@ field_axioms: list[CompositeExpression] = [
     forall(a, ex("1 * a == a")),
     # inverse
     subtraction,
-    forall([a, b, c], ex("b != 0 ==> (a / b = c <==> a = b * c)")),
+    forall([a, b, c], ex("b != 0 ==> (a / b == c <==> a == b * c)")),
     # distributive
     forall((a, b, c), ex("a * (b + c) == a * b + a * c")),
     # Do I need to add 1 != 0?
@@ -62,14 +62,16 @@ class TestGuidedSimplify(unittest.TestCase):
 
         # Attempt number two.  Really should separate out proof state from
         # learning.  Oh well.
-        gs.start = ex("(x + 0) + 0")
-        gs.brute_force(x)
+        gs.solveme(ex("(x + 0) + 0"), x)
 
-        gs.start = ex("0 + x")
-        gs.brute_force(x)
+        gs.solveme(ex("0 + x"), x)
 
+        print("********** Attempting 7 - 7")
         gs.solveme(ex("7 - 7"), num(0))
-        gs.brute_force(x)
+
+        # So we get to:
+        # a - b == c <==> a == b + c dummies a, b, c.  But no further.
+        # So we need to recognize <==> (and =>) and try the relevant side(s).
 
         # Next up: simplify 7 - 7.
         #

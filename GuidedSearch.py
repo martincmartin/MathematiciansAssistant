@@ -4,15 +4,18 @@
 
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import MutableMapping, Set
 
 from Expression import Variable, NumberLiteral, Node, Expression, CompositeExpression
-from typing import cast, Optional
+from typing import cast, Optional, Type
 
 from MatchAndSubstitute import try_rule, Direction, is_rule, match
 
 
 class Guidance:
+    lhs: Set[Type[Expression]]
+    rhs: Set[Type[Expression]]
+
     def __init__(self):
         self.lhs = set()  # Handle "x" allowed on LHS in code.
         self.rhs = {NumberLiteral}
@@ -147,8 +150,10 @@ class GuidedSimplify:
     # Map from expressions we can simplify, to rule used to perform the
     # simplification.
     _algorithms: MutableMapping[Expression, Expression]
+    _rules: list[CompositeExpression]
+    _start: Expression
 
-    def __init__(self, rules, start: Expression):
+    def __init__(self, rules: list[CompositeExpression], start: Expression):
         self._rules = rules
         self._start = start
         self._algorithms = {}
@@ -179,17 +184,17 @@ class GuidedSimplify:
 
     # Use this to find which rule(s) simplify the start expression.
     def brute_force(self, goal: Expression) -> bool:
-        rules_to_use = set()
         for rule in self._rules:
             if not is_rule(rule):
                 continue
+            # Need to loop here.
             results = try_rule(rule, self._start, Direction.FORWARD)
+            print(f"** {results=}")
             for result in results:
-                print(f"{result} from {rule}")
                 if result == goal:
                     self.solved(self._start, rule)
                     return True
-                for known, next_rule in self._algorithms.items():
+                for known, _ in self._algorithms.items():
                     subs = match({}, known, result)
                     if subs is not None:
                         self.solved(self._start, rule)

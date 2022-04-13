@@ -1,3 +1,6 @@
+# Run using:
+# python3 -m unittest tests/test_Expression.py
+
 import unittest
 
 import Parser

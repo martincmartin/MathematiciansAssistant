@@ -102,9 +102,7 @@ class ExprAndParent:
     _expr: Expression
     _parent: "ExprAndParent"
 
-    def __init__(
-        self, expr: Expression, parent: Optional["ExprAndParent"]
-    ) -> None:
+    def __init__(self, expr: Expression, parent: Optional["ExprAndParent"]) -> None:
         self._expr = expr
         self._parent = parent
 
@@ -125,9 +123,7 @@ class RulePosition:
     premise: int = 0
     target: int = 0
 
-    def __init__(
-        self, rule: Union[ExprAndParent, Expression], parent=None
-    ) -> None:
+    def __init__(self, rule: Union[ExprAndParent, Expression], parent=None) -> None:
         if isinstance(rule, ExprAndParent):
             assert parent is None
             self.rule = rule
@@ -136,11 +132,15 @@ class RulePosition:
             self.rule = ExprAndParent(rule, parent)
 
     def __repr__(self):
-        return "[premise: " + str(self.premise) + ", target: " + str(
-            self.target
-        ) + ", rule: " + str(
-            self.rule.expr
-        ) + "]"
+        return (
+            "[premise: "
+            + str(self.premise)
+            + ", target: "
+            + str(self.target)
+            + ", rule: "
+            + str(self.rule.expr)
+            + "]"
+        )
 
 
 class RuleAndScore:
@@ -190,9 +190,7 @@ class GoalExprsBruteForce(GoalExprsABC):
     _exprs_map: MutableMapping[Expression, ExprAndParent]
     _parent: GoalExprsABC
 
-    def __init__(
-        self, exprs: List[ExprAndParent], parent: GoalExprsABC
-    ) -> None:
+    def __init__(self, exprs: List[ExprAndParent], parent: GoalExprsABC) -> None:
         super().__init__(exprs, parent)
         assert all(isinstance(e, ExprAndParent) for e in exprs)
         self._parent = parent
@@ -233,14 +231,11 @@ class Exprs(GoalExprsABC):
 
         assert all(isinstance(e, ExprAndParent) for e in exprs)
         self.exprs_non_rules = [e for e in exprs if not is_rule(e.expr)]
-        self.exprs_rules = [
-            RulePosition(e, None) for e in exprs if is_rule(e.expr)
-        ]
+        self.exprs_rules = [RulePosition(e, None) for e in exprs if is_rule(e.expr)]
 
         self.exprs_map = {
             expr.expr: expr
-            for expr in self.exprs_non_rules
-            + [r.rule for r in self.exprs_rules]
+            for expr in self.exprs_non_rules + [r.rule for r in self.exprs_rules]
         }
 
     def add(self, expr_and_parent: ExprAndParent):
@@ -253,9 +248,7 @@ class Exprs(GoalExprsABC):
     def __contains__(self, expr: Expression) -> bool:
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
-        return bool(
-            expr in self.exprs_map or (self.parent and expr in self.parent)
-        )
+        return bool(expr in self.exprs_map or (self.parent and expr in self.parent))
 
     def __getitem__(self, key: Expression) -> ExprAndParent:
         if key in self.exprs_map:
@@ -308,8 +301,10 @@ class Exprs(GoalExprsABC):
     def all_exprs(self) -> List[ExprAndParent]:
         # This won't work in general, because when we add a rule, it will change
         # the index of all elements of exprs_list.  Oi.
-        return self.exprs_non_rules + self.immediate_rules() + (
-            self.parent.all_exprs() if self.parent else []
+        return (
+            self.exprs_non_rules
+            + self.immediate_rules()
+            + (self.parent.all_exprs() if self.parent else [])
         )
 
     def __str__(self) -> str:
@@ -414,9 +409,7 @@ class ProofState:
                     )
                 else:
                     assert direction == Direction.BACKWARD
-                    return list(
-                        reversed(collect_path(move_and_parent))
-                    ) + collect_path(
+                    return list(reversed(collect_path(move_and_parent))) + collect_path(
                         found
                     )
             already_seen.add(move_and_parent)
@@ -465,9 +458,7 @@ class ProofState:
         # Would be clearer and more type safe if Python had a separate class
         # for priority queue, instead of exposing the implementation like
         # this.  Oh well.
-        rules = heapq.heapify(
-            [RuleAndScore(r) for r in self.context.all_rules()]
-        )
+        rules = heapq.heapify([RuleAndScore(r) for r in self.context.all_rules()])
 
         # Need to keep track of which rules we've tried on which expressions, as
         # well as a score?
@@ -499,7 +490,7 @@ class ProofState:
 
 
 def match(
-    dummies: AbstractSet[Variable], pattern: Expression, target: Expression
+    dummies: Set[Variable], pattern: Expression, target: Expression
 ) -> Optional[Mapping[Expression, Expression]]:
     """Matches "pattern" against "target"s root, i.e. not recursively.
 
@@ -526,8 +517,7 @@ def match(
                 # If target is anything other than a variable or nuber literal,
                 # don't match.
                 if not (
-                    isinstance(target, NumberLiteral)
-                    or target.free_variables(set())
+                    isinstance(target, NumberLiteral) or target.free_variables(set())
                 ):
                     return None
             return {pattern: target}
@@ -591,14 +581,12 @@ def is_rule(expr: Expression) -> bool:
     if has_head(expr, ForAll):
         return is_rule(cast(CompositeExpression, expr)[2])
 
-    return has_head(expr, Implies) or has_head(expr, Equivalent) or has_head(
-        expr, Equal
+    return (
+        has_head(expr, Implies) or has_head(expr, Equivalent) or has_head(expr, Equal)
     )
 
 
-def is_instance(
-    expr: Expression, rule: Expression, dummies: Set[Variable] = set()
-):
+def is_instance(expr: Expression, rule: Expression, dummies: Set[Variable] = set()):
     """Determines whether 'expr' an instance of 'rule.'
 
     returns the substitution that makes them match, or None if there's no match.
@@ -611,9 +599,7 @@ def is_instance(
 
     if has_head(rule, ForAll):
         rule = cast(CompositeExpression, rule)
-        return is_instance(
-            expr, rule[2], dummies.union(rule.get_variables(dummies))
-        )
+        return is_instance(expr, rule[2], dummies.union(rule.get_variables(dummies)))
     else:
         return match(dummies, rule, expr)
 
@@ -636,7 +622,6 @@ def is_instance(
 # Python doesn't have a singly linked list class, so we roll our own.
 # Wonder if a named tuple would be better: hashable, constant.
 class PathToRoot:
-
     def __init__(self, node, parent):
         self.node = node
         self.parent = parent
@@ -685,9 +670,7 @@ def path_length(node1, node2, expr):
 
             assert thing1.depth == thing2.depth
 
-            path_len = (path1.depth - thing1.depth) + (
-                path2.depth - thing1.depth
-            )
+            path_len = (path1.depth - thing1.depth) + (path2.depth - thing1.depth)
             ret.append((path_len, path1.node, path2.node))
     # Sort by path_len.
     ret.sort(key=lambda x: x[0])
@@ -696,9 +679,7 @@ def path_length(node1, node2, expr):
 
 # Appends to paths_from_targest_to_root, the paths from exp to all nodes which
 # == target, with parent_path_to_root pre-pended.
-def path_length_helper(
-    target, expr, parent_path_to_root, paths_from_targets_to_root
-):
+def path_length_helper(target, expr, parent_path_to_root, paths_from_targets_to_root):
     if expr == target:
         paths_from_targets_to_root.append(PathToRoot(expr, parent_path_to_root))
     elif isinstance(expr, CompositeExpression):

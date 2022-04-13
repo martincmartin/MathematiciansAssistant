@@ -77,6 +77,8 @@ EAndP = TypeVar("EAndP", bound=ExprAndParent)
 # Instead, we use Fitch-style calculus
 # https://en.wikipedia.org/wiki/Fitch_notation
 #
+# (Gentzen style seems to be all the rage, but Fitch seems more natuarl to me.)
+#
 # Essentially, every time we introduce a new assumption, we want to create a
 # new object that holds that assumption in it's context, then we drive
 # whatever we want in that object, then we can conclude "assumption => what
@@ -250,8 +252,6 @@ class BruteForceProofState:
         # context and goals are actually not used in any method.  So this
         # class is more like a C++ struct than a class.  Yikes!
         self.context = Exprs(context, getattr(parent, "context", None))
-        # Only the "brute force" constructor takes a second argument here,
-        # which is I think why PyCharm is complaining.
         self.goals = Exprs(goals, getattr(parent, "goals", None))
 
     def _is_instance(self, expr: Expression, rule: Expression):

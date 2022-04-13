@@ -1,10 +1,15 @@
 import unittest
 
-from MatchAndSubstitute import match, is_instance, is_rule, try_rule, \
-    Direction, rename_quantified
+from MatchAndSubstitute import (
+    match,
+    is_instance,
+    is_rule,
+    try_rule,
+    Direction,
+    rename_quantified,
+)
 import Parser
-from Expression import var, sum_, num, forall, ExpressionType, equal, \
-    sum_simplifier
+from Expression import var, sum_, num, forall, ExpressionType, equal, sum_simplifier
 
 # import typeguard
 
@@ -41,8 +46,8 @@ x = var("x", OBJECT)
 y = var("y", OBJECT)
 z = var("z", OBJECT)
 
-xl = var('x', NUMBER_LITERAL)
-yl = var('y', NUMBER_LITERAL)
+xl = var("x", NUMBER_LITERAL)
+yl = var("y", NUMBER_LITERAL)
 
 sum_simplifier_rule = forall((xl, yl), equal(xl + yl, sum_simplifier(xl, yl)))
 
@@ -55,14 +60,11 @@ ANY = ExpressionType.ANY
 
 
 class TestMatch(unittest.TestCase):
-
     def test_node(self):
-        self.assertEqual({A: (A + B)},
-                         match({'A': A}, A, A + B))
+        self.assertEqual({A: (A + B)}, match({"A": A}, A, A + B))
 
     def test_sum(self):
-        self.assertEqual({A: C},
-                         match({'A': A}, A + B, C + B))
+        self.assertEqual({A: C}, match({"A": A}, A + B, C + B))
 
     def test_different_root(self):
         self.assertIsNone(match({}, A + B, A * B))
@@ -73,36 +75,33 @@ class TestMatch(unittest.TestCase):
         self.assertIsNone(match({}, A + B, sum_(A, B, C)))
 
     def test_simple(self):
-        self.assertEqual({A: (A + C)},
-                         match({'A': A}, ex("A in B"), ex("A + C in B")),
+        self.assertEqual(
+            {A: (A + C)},
+            match({"A": A}, ex("A in B"), ex("A + C in B")),
         )
 
     def test_dummy_appears_twice(self):
         self.assertEqual(
-            match({'A': A}, ex("A in A"), ex("A + B in A + B")), {A: (A + B)}
+            match({"A": A}, ex("A in A"), ex("A + B in A + B")), {A: (A + B)}
         )
 
     def test_dummy_appears_twice2(self):
-        self.assertIsNone(match({'A': A}, ex("A in A"), ex("A + B in A + "
-                                                               "C")))
+        self.assertIsNone(match({"A": A}, ex("A in A"), ex("A + B in A + " "C")))
 
     def test_two_dummies(self):
-        self.assertEqual({x: A, y: B},
-                        match({'x': x, 'y': y}, x + y, A + B))
+        self.assertEqual({x: A, y: B}, match({"x": x, "y": y}, x + y, A + B))
 
     def test_number_literal(self):
-        self.assertEqual(match({'a': a}, a, num(1)), {a: num(1)})
+        self.assertEqual(match({"a": a}, a, num(1)), {a: num(1)})
 
     def test_matrix_literal(self):
         self.assertEqual(
-            match({'a': a, 'b': b, 'c': c, 'd': d},
-                  ex("[a b; c d]"), ex("[1 2; 3 4]")),
+            match({"a": a, "b": b, "c": c, "d": d}, ex("[a b; c d]"), ex("[1 2; 3 4]")),
             {a: num(1), b: num(2), c: num(3), d: num(4)},
         )
 
 
 class TestIsInstance(unittest.TestCase):
-
     def test_reflexivity_of_equals(self):
         self.assertEqual(
             is_instance(
@@ -124,7 +123,6 @@ class TestIsInstance(unittest.TestCase):
 
 
 class TestRenameQuantified(unittest.TestCase):
-
     def test_eq_bound_variable(self):
         """Test that equality takes the name of the bound variable into
         account.
@@ -135,38 +133,35 @@ class TestRenameQuantified(unittest.TestCase):
         Quantifier._variables_map.keys() were renamed, only that the child
         expression was renamed.
         """
-        self.assertNotEqual(forall(_a, ex('a + 0 == a')),
-                            forall(a, ex('a + 0 == a')))
+        self.assertNotEqual(forall(_a, ex("a + 0 == a")), forall(a, ex("a + 0 == a")))
 
-        self.assertEqual(forall(a, ex('a + 0 == a')),
-                         forall(a, ex('a + 0 == a')))
+        self.assertEqual(forall(a, ex("a + 0 == a")), forall(a, ex("a + 0 == a")))
 
     def test_simple(self):
         self.assertEqual(
-            forall(_a, ex('_a + 0 == _a')),
-            rename_quantified(forall(a, ex('a + 0 == a')), {'a', 'b'}))
+            forall(_a, ex("_a + 0 == _a")),
+            rename_quantified(forall(a, ex("a + 0 == a")), {"a", "b"}),
+        )
 
     def test_overlapping(self):
         self.assertEqual(
-            forall((var('__a', OBJECT), _a), ex('_a * __a == 0')),
-            rename_quantified(forall((a, _a), ex('_a * a == 0')),
-                              {'a', 'M'}))
+            forall((var("__a", OBJECT), _a), ex("_a * __a == 0")),
+            rename_quantified(forall((a, _a), ex("_a * a == 0")), {"a", "M"}),
+        )
 
     def test_hmm(self):
-        renamed = rename_quantified(forall((a, _a), ex('_a * a == 0')),
-                          {'a', '_a'})
+        renamed = rename_quantified(forall((a, _a), ex("_a * a == 0")), {"a", "_a"})
         # Order of renaming can be different in different runs, thanks to
         # set() being non deterministic.  That's ok.
-        vars = (var('__a', OBJECT), var('___a', OBJECT))
+        vars = (var("__a", OBJECT), var("___a", OBJECT))
 
         self.assertIn(
             renamed,
-            {forall(vars, ex("__a * ___a == 0")),
-             forall(vars, ex("___a * __a == 0"))})
+            {forall(vars, ex("__a * ___a == 0")), forall(vars, ex("___a * __a == 0"))},
+        )
 
 
 class TestIsRule(unittest.TestCase):
-
     def test_equals(self):
         self.assertTrue(is_rule(ex("P * M == M * P")))
 
@@ -181,7 +176,6 @@ class TestIsRule(unittest.TestCase):
 
 
 class TestTryRule(unittest.TestCase):
-
     def test_doesnt_match(self):
         self.assertEqual(
             try_rule(
@@ -346,20 +340,13 @@ class TestTryRule(unittest.TestCase):
                 ex("[1 1; 1 1] * [1 1; 0 1]"),
                 Direction.FORWARD,
             ),  # Direction is ignored for == I think.
-            {
-                ex(
-                    "[1 * 1 + 1 * 0   1 * 1 + 1 * 1;"
-                    " 1 * 1 + 1 * 0   1 * 1 + 1 * 1]"
-                )
-            },
+            {ex("[1 * 1 + 1 * 0   1 * 1 + 1 * 1;" " 1 * 1 + 1 * 0   1 * 1 + 1 * 1]")},
         )
 
     def test_bound_vs_free_vars(self):
         # with self.assertRaises(AssertionError):
         self.assertEqual(
-            try_rule(
-                ex("a == b"), forall(a, ex("a + a == 2 * a")), Direction.FORWARD
-            ),
+            try_rule(ex("a == b"), forall(a, ex("a + a == 2 * a")), Direction.FORWARD),
             set(),
         )
 
@@ -370,25 +357,23 @@ class TestTryRule(unittest.TestCase):
             try_rule(
                 forall(a, ex("1 * a == a")),
                 forall((B, C), ex("1 * B == C")),
-                Direction.FORWARD
+                Direction.FORWARD,
             ),
-            {forall((B, C), ex('B == C'))},
+            {forall((B, C), ex("B == C"))},
         )
 
     def test_rename(self):
-        """Test quantifier applied to quantifier, with the same var name.
-
-        """
+        """Test quantifier applied to quantifier, with the same var name."""
         self.assertEqual(
             try_rule(
-                forall(a, ex('0 * a == 0')),
-                forall(a, ex('0 * a == 0')),
-                Direction.FORWARD
+                forall(a, ex("0 * a == 0")),
+                forall(a, ex("0 * a == 0")),
+                Direction.FORWARD,
             ),
             {
-                forall((a, _a), ex('(0 * _a) * a == 0')),
-                forall((a, _a), ex('0 * a == 0 * _a')),
-                ex('0 == 0'),
+                forall((a, _a), ex("(0 * _a) * a == 0")),
+                forall((a, _a), ex("0 * a == 0 * _a")),
+                ex("0 == 0"),
             },
         )
 
@@ -397,23 +382,32 @@ class TestTryRule(unittest.TestCase):
             try_rule(
                 forall((a, _a), ex("_a * a == 0")),
                 forall(a, ex("M == a")),
-                Direction.FORWARD),
-            frozenset()
+                Direction.FORWARD,
+            ),
+            frozenset(),
         )
 
     def test_sum_simplifier_basic(self):
         self.assertEqual(
-            {num(12)},
-            try_rule(sum_simplifier_rule,
-                       ex("5 + 7"),
-                       Direction.FORWARD))
+            {num(12)}, try_rule(sum_simplifier_rule, ex("5 + 7"), Direction.FORWARD)
+        )
 
     def test_sum_simplifier_three(self):
         self.assertEqual(
-            {ex('12 + 23')},
-            try_rule(sum_simplifier_rule,
-                     ex("5 + 7 + 23"),
-                     Direction.FORWARD))
+            {ex("12 + 23")},
+            try_rule(sum_simplifier_rule, ex("5 + 7 + 23"), Direction.FORWARD),
+        )
+
+    def test_iff_of_equality(self):
+        print("*****+++++ Starting")
+        self.assertEqual(
+            {ex("7 == 7 + 0")},
+            try_rule(
+                forall([a, b, c], ex("a - b == c <==> a == b + c")),
+                ex("7 - 7 == 0"),
+                Direction.FORWARD,
+            ),
+        )
 
 
 if __name__ == "__main__":
