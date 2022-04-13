@@ -6,6 +6,8 @@ from typing import Sequence
 from typing import cast
 
 
+# This is the main entry point to theorem proving, e.g. called by
+# DummitAndFoote to actually solve the exercises.
 def try_rules(
     context: Sequence[Expression],
     goal: Expression,
