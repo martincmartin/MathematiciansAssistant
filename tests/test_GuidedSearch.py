@@ -95,8 +95,6 @@ class TestGuidedSimplify(unittest.TestCase):
         for start, rule in gs.algorithms.items():
             print(f"{start}    using {rule}")
 
-        self.assertTrue(False)
-
 
 # class TestGuidance(unittest.TestCase):
 #     def setUp(self) -> None:

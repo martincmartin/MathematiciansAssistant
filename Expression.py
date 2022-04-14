@@ -238,7 +238,7 @@ class Node(Expression, abc.ABC):
     # If we're an operator, this shouldn't be called.
     # Python docs for NotImplementedError say this is how you're supposed to
     # un-define a method in a subclass that's defined in a superclass.
-    __repr__ = None
+    __repr__ = None  # type: ignore
 
     def declass(self) -> object:  # pragma: no cover
         return type(self).__name__
@@ -314,7 +314,7 @@ class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
 
     # See https://stackoverflow.com/questions/50317506
     def __new__(cls, iterable: Iterable[Expression]):
-        return tuple.__new__(cls, iterable)
+        return tuple.__new__(cls, iterable)  # type: ignore
 
     def __init__(self, iterable: Iterable[Expression]) -> None:
         super().__init__()

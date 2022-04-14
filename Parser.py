@@ -1,6 +1,6 @@
 from Expression import *
-from tokenize import *
-from typing import *
+from tokenize import *  # type: ignore
+from typing import List
 import io
 import token
 
