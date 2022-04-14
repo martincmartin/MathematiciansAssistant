@@ -10,7 +10,7 @@ import token
 
 class Parser:
     type: Union[int, str]
-    token: Optional[TokenInfo]
+    token: TokenInfo
     tokens: List[TokenInfo]
 
     keywords = {"in", "and", "or", "not", "==>", "<==>", "forall", "exists"}
@@ -37,8 +37,8 @@ class Parser:
     }
 
     def __init__(self, input_str: str) -> None:
-        self.type = None
-        self.token = None
+        # self.type = None
+        # self.token = None
 
         # We want to peek ahead, and all our input strings should be small
         # anyway, so just turn the generator into a list.
@@ -65,7 +65,9 @@ class Parser:
             ):
                 # Create a single ==> token.
                 self.tokens.append(
-                    type(tok)(type=NAME, string="==>", start=None, end=None, line=None)
+                    type(tok)(
+                        type=NAME, string="==>", start=(-1, -1), end=(-1, -1), line=""
+                    )
                 )
                 skip = 1
             elif (
@@ -79,9 +81,9 @@ class Parser:
                     type(tok)(
                         type=NAME,
                         string="<==>",
-                        start=None,
-                        end=None,
-                        line=None,
+                        start=None,  # type: ignore
+                        end=None,  # type: ignore
+                        line=None,  # type: ignore
                     )
                 )
                 skip = 2
@@ -166,14 +168,14 @@ class Parser:
         e = self.unary()
         while self.accept(STAR, SLASH):
             clz = self.class_map[self.token.exact_type]
-            e = CompositeExpression([clz(), e, self.unary()])
+            e = CompositeExpression([clz(), e, self.unary()])  # type: ignore
         return e
 
     def additive(self) -> Expression:
         e = self.multiplicative()
         while self.accept(PLUS, MINUS):
             clz = self.class_map[self.token.exact_type]
-            e = CompositeExpression([clz(), e, self.multiplicative()])
+            e = CompositeExpression([clz(), e, self.multiplicative()])  # type: ignore
         return e
 
     def comparison(self) -> Expression:
@@ -183,7 +185,7 @@ class Parser:
             LESS, GREATER, EQEQUAL, NOTEQUAL, LESSEQUAL, GREATEREQUAL, "in"
         ):
             clz = self.class_map[self.type]
-            e = CompositeExpression([clz(), e, self.additive()])
+            e = CompositeExpression([clz(), e, self.additive()])  # type: ignore
         return e
 
     def negation(self) -> Expression:
@@ -195,14 +197,14 @@ class Parser:
         e = self.negation()
         while self.accept("and", "or"):
             clz = self.class_map[self.type]
-            e = CompositeExpression([clz(), e, self.negation()])
+            e = CompositeExpression([clz(), e, self.negation()])  # type: ignore
         return e
 
     def implies_equiv(self) -> Expression:
         e = self.and_or()
         while self.accept("==>", "<==>"):
             clz = self.class_map[self.type]
-            e = CompositeExpression([clz(), e, self.and_or()])
+            e = CompositeExpression([clz(), e, self.and_or()])  # type: ignore
         return e
 
     def forall_exists(self) -> Expression:
