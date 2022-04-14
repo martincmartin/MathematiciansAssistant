@@ -123,7 +123,7 @@ def is_rule(expr: Expression) -> bool:
 
 def is_instance(
     expr: Expression, rule: Expression, dummies: Mapping[str, Variable] = {}
-) -> Optional[Mapping[str, Variable]]:
+) -> Optional[Mapping[Variable, Expression]]:
     """Determines whether 'expr' is an instance of 'rule.'
 
     returns the substitution that makes them match, or None if there's no match.
@@ -261,7 +261,9 @@ def try_rule(
         v.name for v in target.free_variables(frozenset())
     }
 
-    quantified = rename_quantified(forall(dummies.values(), rule), target_vars)
+    quantified: CompositeExpression = rename_quantified(
+        forall(dummies.values(), rule), target_vars
+    )
     dummies = quantified.get_variables({})
     rule = quantified[1]
 
@@ -287,8 +289,8 @@ def try_rule(
         # So, we only want to apply this at the top level, i.e.
         # under all the "forall"s, but above everything else.
         result: Set[Expression] = set()
-        rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in dummies
-        lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in dummies
+        rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in dummies  # type: ignore
+        lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in dummies  # type: ignore
         if not rhs_is_bound_var:
             result = _recursive_match_and_substitute(dummies, rule[2], rule[1], target)
         if not lhs_is_bound_var:
@@ -326,6 +328,7 @@ def try_rule(
                 # just add these variables there, rather than creating a new
                 # ForAll.
                 if has_head(res, ForAll):
+                    res = cast(CompositeExpression, res)
                     common_vars.update(res[0].get_variables_tree({}).values())
                     res = res[1]
                 res = forall(common_vars, res)
@@ -424,6 +427,7 @@ def _substitute(subs: Mapping[Variable, Expression], expr: Expression) -> Expres
         if isinstance(expr, Quantifier):
             old_vars = expr.get_variables_tree({})
             new_vars = [subs.get(v, v) for v in old_vars.values()]
+            new_vars = cast(list[Variable], new_vars)
             # The new names shouldn't be the same as any of the old names ...
             # unless those old names are also being renamed.
             assert len(frozenset(variable.name for variable in new_vars)) == len(
@@ -512,7 +516,7 @@ def rename_quantified(
 
 
 def _rename_variables(
-    to_rename: Sequence[Variable], taken: Set[str], expr: Expression
+    to_rename: Iterable[Variable], taken: Set[str], expr: Expression
 ) -> Expression:
     # Note: to_rename is ordered, let's preserve order.
     to_rename = [variable for variable in to_rename if variable.name in taken]
