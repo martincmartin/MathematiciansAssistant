@@ -39,9 +39,9 @@ from typing import TypeVar
 
 class ExprAndParent:
     _expr: Expression
-    _parent: "ExprAndParent"
+    _parent: Optional[ExprAndParent]
 
-    def __init__(self, expr: Expression, parent: Optional["ExprAndParent"]) -> None:
+    def __init__(self, expr: Expression, parent: Optional[ExprAndParent]) -> None:
         self._expr = expr
         self._parent = parent
 
@@ -50,7 +50,7 @@ class ExprAndParent:
         return self._expr
 
     @property
-    def parent(self) -> "ExprAndParent":
+    def parent(self) -> Optional[ExprAndParent]:
         return self._parent
 
     def __repr__(self) -> str:
@@ -58,10 +58,11 @@ class ExprAndParent:
 
 
 def collect_path(start: ExprAndParent) -> Sequence[Expression]:
-    ret = []
-    while start is not None:
-        ret.append(start.expr)
-        start = start.parent
+    ret: list[Expression] = []
+    current: Optional[ExprAndParent] = start
+    while current is not None:
+        ret.append(current.expr)
+        current = current.parent
     return ret
 
 
@@ -147,13 +148,11 @@ class Exprs(Mapping[Expression, EAndP]):
     exprs."""
 
     _exprs_map: MutableMapping[Expression, EAndP]
-    _parent: Optional["Exprs"]
+    _parent: Optional[Exprs]
     _exprs_rules: MutableSequence[EAndP]
     _exprs_non_rules: MutableSequence[EAndP]
 
-    def __init__(
-        self, exprs: Sequence[EAndP], parent: Optional["Exprs"] = None
-    ) -> None:
+    def __init__(self, exprs: Sequence[EAndP], parent: Optional[Exprs] = None) -> None:
         self._parent = parent
         self._exprs_non_rules = [e for e in exprs if not is_rule(e.expr)]
         self._exprs_rules = [e for e in exprs if is_rule(e.expr)]
