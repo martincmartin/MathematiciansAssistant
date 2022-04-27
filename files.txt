@@ -11,6 +11,8 @@ MatchAndSubstitute.py: Pattern matching and substitution functions on
 
 All of these are build on Expression and MatchAndSubstitute.
 
+ProofSystem.py: Common code from different Deduction files, e.g. ExprAndParent.
+
 DeductionOrig: Not used, should probably be deleted.  Contains path_length(),
 but that's not used anywhere.  I should probably put path_lenght() in a separate
 file and delete the rest.
@@ -22,8 +24,6 @@ support classes are now in ProofSystem.py.
 DeductionCalcMode.py: I'm currently working on this (April 2022).  Deduction for
 calc mode: deriving a set of terms (i.e. expressions of type "number", or maybe
 "object" or at least "not proposition")
-
-ProofSystem.py: Common code from different Deduction files, e.g. ExprAndParent.
 
 GuidedSearch.py: Not used.
 

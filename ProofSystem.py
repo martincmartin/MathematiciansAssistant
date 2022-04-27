@@ -101,7 +101,7 @@ EAndP = TypeVar("EAndP", bound=ExprAndParent)
 # against to tell if we're done.  Also, this class kind of assumes all
 # context items are propositions, not expressions of type math object.
 
-
+# I think I was abstracting this from BruteForceProofState.
 class ProofState:
     # Things equivalent to what we're trying to prove.  Proving any one of
     # these means we're done with our proof.
@@ -233,7 +233,8 @@ class Exprs(Mapping[Expression, EAndP]):
 
 
 # BruteForceProofState, since it matches against all targets, is really part
-# of a brute force setup, so isn't as general or independent as we'd like.
+# of a brute force setup, so isn't as general or independent as we'd like.  So
+# maybe should be moved to a different Python file.
 
 # Why do Exprs and BruteForceProofState both have parents?  I think they must
 # point to the same thing, i.e. BruteForceProofState._parent.context ==
@@ -259,8 +260,6 @@ class BruteForceProofState:
         self.verbosity = verbosity
         self._parent = parent
 
-        # context and goals are actually not used in any method.  So this
-        # class is more like a C++ struct than a class.  Yikes!
         self.context = Exprs(context, getattr(parent, "context", None))
         self.goals = Exprs(goals, getattr(parent, "goals", None))
 
@@ -281,8 +280,7 @@ class BruteForceProofState:
     def _match_against_exprs(
         self, move: Expression, targets: Mapping[Expression, EAndP]
     ) -> Optional[EAndP]:
-        """Determines whether move equals or is_instance any
-        element of targets.
+        """Determines whether move equals or is_instance any element of targets.
 
         If so, returns the element.  If not, returns None.
 
@@ -301,7 +299,7 @@ class BruteForceProofState:
         )
 
     def try_rule(
-        self, rule: Expression, expr_and_parent_in: EAndP, direction: Direction
+        self, rule: Expression, expr_and_parent_in: ExprAndParent, direction: Direction
     ) -> Union[bool, Sequence[Expression]]:
         """Applies "rule" to "expr_and_parent_in", updating self with
         generated expressions.
@@ -343,7 +341,7 @@ class BruteForceProofState:
 
             move_and_parent = expr_and_parent_in.__class__(move, expr_and_parent_in)
 
-            # Ideally, in the case of P in B -> P * M == M * P, we'd
+            # Ideally, in the case of "P in B -> P * M == M * P," we'd
             # recognize that the latter is equivalent to the former, and is
             # strictly more useful so we can get rid of the former.  But I
             # think that takes some global knowledge of the proof, e.g. that

@@ -45,7 +45,7 @@ def try_rules(
 
         # Step 2: simplification / transformations from the goal.
         found = state.try_all_rules(
-            cast(Exprs, state.goals).immediate_non_rules(),
+            cast(Exprs[ExprAndParent], state.goals).immediate_non_rules(),
             state.context.immediate_rules(),
             Direction.BACKWARD,
         )
@@ -62,7 +62,7 @@ def try_rules(
         "prove the goal.  Switching to general purpose premises / rules."
     )
 
-    for current_goal in cast(Exprs, state.goals).equalities():
+    for current_goal in cast(Exprs[ExprAndParent], state.goals).equalities():
         assert has_head(current_goal.expr, Equal)
         goal_expr = cast(CompositeExpression, current_goal.expr)
         lhs = ExprAndParent(goal_expr[1], None)
