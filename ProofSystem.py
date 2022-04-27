@@ -20,7 +20,7 @@ particular search technique.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, MutableMapping, Sequence, MutableSequence, Iterator
+from collections.abc import Mapping, MutableMapping, Sequence, Iterator
 
 from Expression import Expression, CompositeExpression
 import MatchAndSubstitute
@@ -37,7 +37,10 @@ from typing import TypeVar
 # "Collection" supports len(), contains and iter().
 # "Sequence" supports random access through getitem.
 #
-# operator "+" doesn't support Sequence and MutableSequence.
+# operator "+" doesn't support Sequence, and my code is cleaner using it.  So, I
+# explicitly use "list" as a return type everywhere just so I can use "+".  The
+# alternative is "temp = [x for x in first_seq]; temp.extend(second_seq); return
+# temp."
 
 # Wish I could make this a NamedTuple, but recursively typed NamedTuples and
 # mypy are currently broken, see https://github.com/python/mypy/issues/3836
@@ -66,7 +69,7 @@ class ExprAndParent:
         return repr(self._expr) + " & parent"
 
 
-def collect_path(start: ExprAndParent) -> Sequence[Expression]:
+def collect_path(start: ExprAndParent) -> list[Expression]:
     ret: list[Expression] = []
     current: Optional[ExprAndParent] = start
     while current is not None:
@@ -158,8 +161,8 @@ class Exprs(Mapping[Expression, EAndP]):
 
     _exprs_map: MutableMapping[Expression, EAndP]
     _parent: Optional[Exprs[EAndP]]
-    _exprs_rules: MutableSequence[EAndP]
-    _exprs_non_rules: MutableSequence[EAndP]
+    _exprs_rules: list[EAndP]
+    _exprs_non_rules: list[EAndP]
 
     def __init__(
         self, exprs: Sequence[EAndP], parent: Optional[Exprs[EAndP]] = None
@@ -207,13 +210,13 @@ class Exprs(Mapping[Expression, EAndP]):
     def immediate_non_rules(self) -> Sequence[EAndP]:
         return self._exprs_non_rules
 
-    def all_rules(self) -> Sequence[EAndP]:
+    def all_rules(self) -> list[EAndP]:
         if self._parent:
             return self._parent.all_rules() + self._exprs_rules
         else:
             return self._exprs_rules
 
-    def all_exprs(self) -> Sequence[EAndP]:
+    def all_exprs(self) -> list[EAndP]:
         # This won't work in general, because when we add a rule, it will change
         # the index of all elements of exprs_list.  Oi.
         return (
@@ -222,15 +225,10 @@ class Exprs(Mapping[Expression, EAndP]):
             + (self._parent.all_exprs() if self._parent else [])
         )
 
-    def equalities(self) -> Sequence[EAndP]:
-        # Returns a List, rather than Sequence or Iterable, because Python
-        # makes dealing with sequences slightly inconvenient: list's "+" only
-        # takes other lists, not sequences.  So, concatenating a sequence
-        # onto a list is done "temp = [ ... ]; temp.extend(seq); return
-        # temp."  I'd rather have the clarity of just "return [ ... ] + seq".
+    def equalities(self) -> list[EAndP]:
         parent_equalities = self._parent.equalities() if self._parent else []
         return [
-            rule for rule in self._exprs_rules if is_equality(rule._expr)
+            rule for rule in self._exprs_rules if is_equality(rule.expr)
         ] + parent_equalities
 
 
