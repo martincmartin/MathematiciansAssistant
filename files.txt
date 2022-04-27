@@ -1,0 +1,37 @@
+***** Foundations
+
+Expression.py: Defines expressions, doesn't import any other MA file.
+
+Parser.py: Parses expressions.  Imports only Expression.py
+
+MatchAndSubstitute.py: Pattern matching and substitution functions on
+    Expressions.  Only imports Expression.py
+
+***** Deduction
+
+All of these are build on Expression and MatchAndSubstitute.
+
+DeductionOrig: Not used, should probably be deleted.  Contains path_length(),
+but that's not used anywhere.  I should probably put path_lenght() in a separate
+file and delete the rest.
+
+DeductionApril2018.py: A rewrite of DeductionOrig.py, actually used by
+DummitAndFoote.py and maybe by Algebra.  Contains only try_rules, because all
+support classes are now in ProofSystem.py.
+
+DeductionCalcMode.py: I'm currently working on this (April 2022).  Deduction for
+calc mode: deriving a set of terms (i.e. expressions of type "number", or maybe
+"object" or at least "not proposition")
+
+ProofSystem.py: Common code from different Deduction files, e.g. ExprAndParent.
+
+GuidedSearch.py: Not used.
+
+***** Applications
+
+DummitAndFoote.py: solving the problems in the classic Abstract Algebra text.
+Uses DeductionApril2018.
+
+Algebra.py: Before we can solve the DummitAndFoote problems, we need to learn
+middle school algebra, and pre-algebra.
+

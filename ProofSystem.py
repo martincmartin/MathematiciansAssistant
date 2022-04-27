@@ -30,6 +30,15 @@ from MatchAndSubstitute import is_rule, Direction, is_equality
 from typing import Optional, Union
 from typing import TypeVar
 
+# Python typing is such a shit show.
+#
+# https://docs.python.org/3/library/collections.abc.html#collections-abstract-base-classes
+#
+# "Collection" supports len(), contains and iter().
+# "Sequence" supports random access through getitem.
+#
+# operator "+" doesn't support Sequence and MutableSequence.
+
 # Wish I could make this a NamedTuple, but recursively typed NamedTuples and
 # mypy are currently broken, see https://github.com/python/mypy/issues/3836
 # class ExprAndParent(NamedTuple):
@@ -148,11 +157,13 @@ class Exprs(Mapping[Expression, EAndP]):
     exprs."""
 
     _exprs_map: MutableMapping[Expression, EAndP]
-    _parent: Optional[Exprs]
+    _parent: Optional[Exprs[EAndP]]
     _exprs_rules: MutableSequence[EAndP]
     _exprs_non_rules: MutableSequence[EAndP]
 
-    def __init__(self, exprs: Sequence[EAndP], parent: Optional[Exprs] = None) -> None:
+    def __init__(
+        self, exprs: Sequence[EAndP], parent: Optional[Exprs[EAndP]] = None
+    ) -> None:
         self._parent = parent
         self._exprs_non_rules = [e for e in exprs if not is_rule(e.expr)]
         self._exprs_rules = [e for e in exprs if is_rule(e.expr)]
@@ -167,7 +178,7 @@ class Exprs(Mapping[Expression, EAndP]):
             self._exprs_non_rules.append(expr_and_parent)
         self._exprs_map[expr_and_parent.expr] = expr_and_parent
 
-    def __contains__(self, expr: Expression) -> bool:
+    def __contains__(self, expr: object) -> bool:
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
         return bool(expr in self._exprs_map or (self._parent and expr in self._parent))
@@ -175,6 +186,8 @@ class Exprs(Mapping[Expression, EAndP]):
     def __getitem__(self, key: Expression) -> EAndP:
         if key in self._exprs_map:
             return self._exprs_map[key]
+        if self._parent is None:
+            raise KeyError
         return self._parent[key]
 
     # Used to iterate over all expressions, to see if a newly generated
