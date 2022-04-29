@@ -52,7 +52,7 @@ yl = var("y", NUMBER_LITERAL)
 sum_simplifier_rule = forall((xl, yl), equal(xl + yl, sum_simplifier(xl, yl)))
 
 
-def ex(string):
+def ex(string: str):
     return Parser.parse(string)
 
 
@@ -405,6 +405,38 @@ class TestTryRule(unittest.TestCase):
             try_rule(
                 forall([a, b, c], ex("a - b == c <==> a == b + c")),
                 ex("7 - 7 == 0"),
+                Direction.FORWARD,
+            ),
+        )
+
+
+class TestCalcMode(unittest.TestCase):
+    def test_associativity(self):
+        self.assertEqual(
+            {ex("x + (7 + -7)")},
+            try_rule(
+                forall([a, b, c], ex("(a + b) + c == a + (b + c)")),
+                ex("x + 7 + -7"),
+                Direction.FORWARD,
+            ),
+        )
+
+    def test_group_inverse(self):
+        self.assertEqual(
+            {ex("x + 0")},
+            try_rule(
+                forall([a], ex("a + -a == 0")),
+                ex("x + (7 + -7)"),
+                Direction.FORWARD,
+            ),
+        )
+
+    def test_identity_element(self):
+        self.assertEqual(
+            {x},
+            try_rule(
+                forall([a], ex("a + 0 == a")),
+                ex("x + 0"),
                 Direction.FORWARD,
             ),
         )

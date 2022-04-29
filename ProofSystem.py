@@ -181,7 +181,7 @@ class Exprs(Mapping[Expression, EAndP]):
             self._exprs_non_rules.append(expr_and_parent)
         self._exprs_map[expr_and_parent.expr] = expr_and_parent
 
-    def __contains__(self, expr: object) -> bool:
+    def __contains__(self, expr: Expression) -> bool:  # type: ignore
         """Used to tell whether or not we've generated this expr before,
         so always checks all parents as well as itself."""
         return bool(expr in self._exprs_map or (self._parent and expr in self._parent))
