@@ -19,6 +19,7 @@ particular search technique.
 """
 
 from __future__ import annotations
+from abc import abstractmethod
 
 from collections.abc import Mapping, MutableMapping, Sequence, Iterator
 
@@ -27,8 +28,7 @@ import MatchAndSubstitute
 from MatchAndSubstitute import is_rule, Direction, is_equality
 
 # from pprint import pprint
-from typing import Optional, Union
-from typing import TypeVar
+from typing import Generic, Optional, Union, TypeVar
 
 # Python typing is such a shit show.
 #
@@ -101,27 +101,124 @@ EAndP = TypeVar("EAndP", bound=ExprAndParent)
 # against to tell if we're done.  Also, this class kind of assumes all
 # context items are propositions, not expressions of type math object.
 
+
+class AddableMapping(Mapping[Expression, EAndP]):
+    @abstractmethod
+    def add(self, value: EAndP) -> None:
+        raise KeyError
+
+
 # I think I was abstracting this from BruteForceProofState.
-class ProofState:
+class ProofState(Generic[EAndP]):
     # Things equivalent to what we're trying to prove.  Proving any one of
     # these means we're done with our proof.
-    goals: Mapping[Expression, EAndP]
+    goals: AddableMapping[EAndP]
 
     # Things that follow from our assumptions.  If we can derive a goal from
     # any of these, we're done.
-    context: Mapping[Expression, EAndP]
+    context: AddableMapping[EAndP]
 
-    # Definitions of terms, introduced by substituting a generic witness for
-    # an existential qualifier.
-    definitions: Mapping[str, Expression]
-
-    _parent: Optional[ProofState]
+    _parent: Optional[ProofState[EAndP]]
 
     verbosity: int
 
-    def __init__(self, parent: Optional[ProofState], verbosity: int):
+    def __init__(self, parent: Optional[ProofState[EAndP]], verbosity: int):
         self.verbosity = verbosity
         self._parent = parent
+
+    def _is_instance(self, expr: Expression, rule: Expression):
+        """Wraps MatchAndSubstitute.is_instance to print if verbose."""
+        subs = MatchAndSubstitute.is_instance(expr, rule)
+        if self.verbosity > 0 and subs is not None:
+            print(
+                str(expr)
+                + " is an instance of "
+                + str(rule)
+                + " subs "
+                + str(subs)
+                + "  !!!!!!"
+            )
+        return subs
+
+    def _match_against_exprs(
+        self, move: Expression, targets: Mapping[Expression, EAndP]
+    ) -> Optional[EAndP]:
+        """Determines whether move equals or is_instance any element of targets.
+
+        If so, returns the element.  If not, returns None.
+
+        From self, only uses verbosity.
+        """
+        if move in targets:
+            return targets[move]
+
+        return next(
+            (
+                targets[target]
+                for target in targets
+                if self._is_instance(move, target) is not None
+            ),
+            None,
+        )
+
+    def try_rule(
+        self, rule: Expression, target: EAndP, direction: Direction
+    ) -> Union[bool, Sequence[Expression]]:
+        """Applies "rule" to "target", updating self with
+        generated expressions.
+
+        A wrapper around MatchAndSubstitute.try_rule().
+
+        If that finishes the proof, returns path from start to goal.
+        Otherwise, adds the any expressions to context (if forward) or
+        goals (if backward), and returns a bool as to whether or not it at
+        least generated a new expression.
+        """
+
+        assert isinstance(rule, CompositeExpression)
+        assert is_rule(rule)
+        assert direction == Direction.FORWARD or direction == Direction.BACKWARD
+
+        exprs = MatchAndSubstitute.try_rule(rule, target.expr, direction)
+
+        if self.verbosity >= 10 or (self.verbosity > 0 and exprs):
+            print(f"try_rule: {rule} transformed {target.expr} into {exprs}")
+
+        if direction == Direction.FORWARD:
+            already_seen = self.context
+            targets = self.goals
+        else:
+            already_seen = self.goals
+            targets = self.context
+
+        added = False
+        for move in exprs:
+            if move in already_seen:
+                continue
+
+            move_and_parent = target.__class__(move, target)
+
+            # Ideally, in the case of "P in B -> P * M == M * P," we'd
+            # recognize that the latter is equivalent to the former, and is
+            # strictly more useful so we can get rid of the former.  But I
+            # think that takes some global knowledge of the proof, e.g. that
+            # "P in B" doesn't appear in the goal in any form, or in any
+            # other premises, etc.  So we'll skip that for now.
+
+            found = self._match_against_exprs(move, targets)
+            if found:
+                if direction == Direction.FORWARD:
+                    return list(reversed(collect_path(found))) + collect_path(
+                        move_and_parent
+                    )
+                else:
+                    return list(reversed(collect_path(move_and_parent))) + collect_path(
+                        found
+                    )
+            already_seen.add(move_and_parent)
+            added = True
+
+        return added
 
 
 # TODO: I feel like this shouldn't be a separate class, but can somehow
@@ -153,7 +250,7 @@ class SimplifyObject:
         self.simplifications[expr.expr] = expr
 
 
-class Exprs(Mapping[Expression, EAndP]):
+class Exprs(AddableMapping[EAndP]):
     """Mutable collection of ExprAndParent subclasses.  Given an Expr (that
     you just generated), can tell you whether it's already been generated,
     and gives you the ExprAndParent.  Also allows you to iterate over the
@@ -174,12 +271,12 @@ class Exprs(Mapping[Expression, EAndP]):
             expr.expr: expr for expr in self._exprs_non_rules + self._exprs_rules
         }
 
-    def add(self, expr_and_parent: EAndP) -> None:
-        if is_rule(expr_and_parent.expr):
-            self._exprs_rules.append(expr_and_parent)
+    def add(self, value: EAndP) -> None:
+        if is_rule(value.expr):
+            self._exprs_rules.append(value)
         else:
-            self._exprs_non_rules.append(expr_and_parent)
-        self._exprs_map[expr_and_parent.expr] = expr_and_parent
+            self._exprs_non_rules.append(value)
+        self._exprs_map[value.expr] = value
 
     def __contains__(self, expr: Expression) -> bool:  # type: ignore
         """Used to tell whether or not we've generated this expr before,
@@ -192,6 +289,10 @@ class Exprs(Mapping[Expression, EAndP]):
         if self._parent is None:
             raise KeyError
         return self._parent[key]
+
+    def __setitem__(self, key: Expression, new_value: EAndP) -> None:
+        assert key is new_value.expr
+        self.add(new_value)
 
     # Used to iterate over all expressions, to see if a newly generated
     # expression is an instance of any of them, meaning the proof is done.
@@ -232,29 +333,12 @@ class Exprs(Mapping[Expression, EAndP]):
         ] + parent_equalities
 
 
-# BruteForceProofState, since it matches against all targets, is really part
-# of a brute force setup, so isn't as general or independent as we'd like.  So
-# maybe should be moved to a different Python file.
-
-# Why do Exprs and BruteForceProofState both have parents?  I think they must
-# point to the same thing, i.e. BruteForceProofState._parent.context ==
-# BruteForceProofState.context._parent.
-
-
-class BruteForceProofState:
-    goals: Exprs[EAndP]
-    context: Exprs[EAndP]
-    # This really needs to be a list, mapping variable to expression that
-    # defines it.
-    definitions: Exprs[EAndP]
-    _parent: Optional["BruteForceProofState"]
-    verbosity: int
-
+class BruteForceProofState(ProofState[ExprAndParent]):
     def __init__(
         self,
         context: Sequence[ExprAndParent],
         goals: Sequence[ExprAndParent],
-        parent: Optional["BruteForceProofState"],
+        parent: Optional[BruteForceProofState],
         verbosity: int,
     ) -> None:
         self.verbosity = verbosity
@@ -263,108 +347,6 @@ class BruteForceProofState:
         self.context = Exprs(context, getattr(parent, "context", None))
         self.goals = Exprs(goals, getattr(parent, "goals", None))
 
-    def _is_instance(self, expr: Expression, rule: Expression):
-        """Wraps MatchAndSubstitute.is_instance to print if verbose."""
-        subs = MatchAndSubstitute.is_instance(expr, rule)
-        if self.verbosity > 0 and subs is not None:
-            print(
-                str(expr)
-                + " is an instance of "
-                + str(rule)
-                + " subs "
-                + str(subs)
-                + "  !!!!!!"
-            )
-        return subs
-
-    def _match_against_exprs(
-        self, move: Expression, targets: Mapping[Expression, EAndP]
-    ) -> Optional[EAndP]:
-        """Determines whether move equals or is_instance any element of targets.
-
-        If so, returns the element.  If not, returns None.
-
-        From self, only uses verbosity.
-        """
-        if move in targets:
-            return targets[move]
-
-        return next(
-            (
-                targets[target]
-                for target in targets
-                if self._is_instance(move, target) is not None
-            ),
-            None,
-        )
-
-    def try_rule(
-        self, rule: Expression, expr_and_parent_in: ExprAndParent, direction: Direction
-    ) -> Union[bool, Sequence[Expression]]:
-        """Applies "rule" to "expr_and_parent_in", updating self with
-        generated expressions.
-
-        A wrapper around MatchAndSubstitute.try_rule().
-
-        If that finishes the proof, returns path from start to goal.
-        Otherwise, adds the any expressions to context (if forward) or
-        goals (if backward), and returns a bool as to whether or not it at
-        least generated a new expression.
-        """
-
-        assert isinstance(rule, CompositeExpression)
-        assert is_rule(rule)
-        assert direction == Direction.FORWARD or direction == Direction.BACKWARD
-
-        # For return type, could really use one of those "value or error" types,
-        # so that if callers don't get the bool, they'll return right away too.
-        already_seen: Exprs[EAndP]
-        targets: Exprs[EAndP]
-        if direction == Direction.FORWARD:
-            already_seen = self.context
-            targets = self.goals
-        else:
-            already_seen = self.goals
-            targets = self.context
-
-        exprs = MatchAndSubstitute.try_rule(rule, expr_and_parent_in.expr, direction)
-
-        if self.verbosity >= 10 or (self.verbosity > 0 and exprs):
-            print(
-                f"try_rule: {rule} transformed {expr_and_parent_in.expr} into {exprs}"
-            )
-
-        added = False
-        for move in exprs:
-            if move in already_seen:
-                continue
-
-            move_and_parent = expr_and_parent_in.__class__(move, expr_and_parent_in)
-
-            # Ideally, in the case of "P in B -> P * M == M * P," we'd
-            # recognize that the latter is equivalent to the former, and is
-            # strictly more useful so we can get rid of the former.  But I
-            # think that takes some global knowledge of the proof, e.g. that
-            # "P in B" doesn't appear in the goal in any form, or in any
-            # other premises, etc.  So we'll skip that for now.
-
-            found = self._match_against_exprs(move, targets)
-            if found:
-                if direction == Direction.FORWARD:
-                    return list(reversed(collect_path(found))) + collect_path(
-                        move_and_parent
-                    )
-                else:
-                    return list(reversed(collect_path(move_and_parent))) + collect_path(
-                        found
-                    )
-            already_seen.add(move_and_parent)
-            added = True
-
-        return added
-
-    # Should this go in a derived class, since its a (brute force) search
-    # strategy?  Oh well.
     def try_all_rules(
         self, non_rules: Sequence[EAndP], rules: Sequence[EAndP], direction: Direction
     ) -> Union[bool, Sequence[Expression]]:
