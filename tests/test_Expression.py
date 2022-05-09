@@ -113,26 +113,20 @@ class TestRepr(unittest.TestCase):
 
 class TestFreeVars(unittest.TestCase):
     def test_basic(self) -> None:
-        self.assertEqual(ex("a + b").free_variables(set()), {a, b})
+        self.assertEqual(ex("a + b").free_variables(), {a, b})
 
     def test_quantifier(self) -> None:
-        self.assertEqual(forall(P, ex("P or Q ==> Q")).free_variables(set()), {Q})
+        self.assertEqual(forall(P, ex("P or Q ==> Q")).free_variables(), {Q})
 
     def test_shadow_free(self) -> None:
-        self.assertEqual(
-            implies(P, forall(P, ex("P or not P"))).free_variables(set()), {P}
-        )
+        self.assertEqual(implies(P, forall(P, ex("P or not P"))).free_variables(), {P})
 
     # I've decided to outlaw shadowing, for the same reason we don't allow
     # it in C++ code: it can confuse the human reader.
     #
-    # def test_shadow_bound(self) -> None:
-    #     self.assertEqual(
-    #         forall(P, implies(P, forall(P, ex("P or not P")))).free_variables(
-    #             set()
-    #         ),
-    #         set(),
-    #     )
+    def test_shadow_bound(self) -> None:
+        with self.assertRaises(AssertionError):
+            forall(P, implies(P, forall(P, ex("P or not P")))).free_variables(),
 
 
 class TestBoundVariables(unittest.TestCase):
@@ -153,18 +147,16 @@ class TestFreeVariables(unittest.TestCase):
     def test_basic(self) -> None:
         self.assertEqual(
             {a, b},
-            ex("a + b == b + a").free_variables(frozenset()),
+            ex("a + b == b + a").free_variables(),
         )
 
     def test_quantifier(self) -> None:
-        self.assertEqual(
-            {a}, forall(b, ex("a + b == b + a")).free_variables(frozenset())
-        )
+        self.assertEqual({a}, forall(b, ex("a + b == b + a")).free_variables())
 
     def test_shadow(self) -> None:
         self.assertEqual(
             {P},
-            and_(P, forall(P, ex("P or not P"))).free_variables(frozenset()),
+            and_(P, forall(P, ex("P or not P"))).free_variables(),
         )
 
 

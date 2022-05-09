@@ -514,11 +514,9 @@ def match(
             # expression is boolean valued.  Also, assume variables don't
             # match operators.
             if isinstance(target, Node):
-                # If target is anything other than a variable or nuber literal,
+                # If target is anything other than a variable or number literal,
                 # don't match.
-                if not (
-                    isinstance(target, NumberLiteral) or target.free_variables(set())
-                ):
+                if not (isinstance(target, NumberLiteral) or target.free_variables()):
                     return None
             return {pattern: target}
         if pattern == target:

@@ -135,7 +135,7 @@ class Expression(abc.ABC):
     def type(self) -> ExpressionType:
         raise NotImplementedError  # pragma: nocover
 
-    def free_variables(self, exclude: Set[Variable]) -> Set[Variable]:
+    def free_variables(self, exclude: Set[Variable] = frozenset()) -> Set[Variable]:
         """Returns the set of free variables in this (sub-)expression.
 
         Free variables are the ones that are *not* covered by an forall or
@@ -144,6 +144,9 @@ class Expression(abc.ABC):
 
         Note that all occurrences must refer to the same object, so must all
         have the same type.
+
+        "exclude" is really intended to be used in the recursive call, not by
+        users.  A quantifier adds the quantified variables to exclude.
         """
         return frozenset()
 
@@ -151,12 +154,14 @@ class Expression(abc.ABC):
         """Returns the set of bound variables in this (sub-)expression.
 
         Bound variables are any variables that are quantified over, either at
-        the root or in any subexpression of the root.  These are the set of
-        variables that will shadow any value / semantics from outside this
-        expression.
+        the root or in any subexpression of the root.  If we allowed shadowing,
+        these would be the set of variables that would shadow any value /
+        semantics from outside this expression.  Since we don't, these variables
+        are simply not allowed to appear outside it.
 
         A variable may be bound more than once, with a different type in
-        different instances.  So we just return the Variable, rather than the
+        different instances.  For example, "(forall(x) x + 0 == 0) && (forall(x)
+        x and x <==> x or x)".  So we just return the name, rather than the
         types.  This function is only used to find variables that need to be
         renamed to avoid collision, we don't use the type anyway.
         """
@@ -292,7 +297,7 @@ class Variable(Node):
     def declass(self):  # pragma: no cover
         return self._name
 
-    def free_variables(self, exclude: Set[Variable]) -> Set[Variable]:
+    def free_variables(self, exclude: Set[Variable] = frozenset()) -> Set[Variable]:
         if self in exclude:
             return frozenset()
         else:
@@ -345,7 +350,7 @@ class CompositeExpression(Expression, tuple[Expression, ...], abc.ABC):
         """
         return [e.declass() for e in self]
 
-    def free_variables(self, exclude: Set[Variable]) -> Set[Variable]:
+    def free_variables(self, exclude: Set[Variable] = frozenset()) -> Set[Variable]:
         return self[0].free_variables_tree(self[1:], exclude)
 
     # TODO: Have all missing methods forward to their first argument, so we
@@ -579,7 +584,7 @@ class Quantifier(Node):
 
         # Make sure the variables in the body are the same type as what we
         # have here in the Quantifier.
-        body_variables = args[0].free_variables(frozenset())
+        body_variables = args[0].free_variables()
         for variable in body_variables:
             if variable.name in self._variables_map:
                 assert variable.type() == self._variables_map[variable.name].type()

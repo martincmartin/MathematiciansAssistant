@@ -1,7 +1,6 @@
 import unittest
 from GuidedSearch import Guidance, GuidedSimplify
 from Expression import *
-from MatchAndSubstitute import try_rule, Direction, match_and_substitute
 import Parser
 
 OBJECT = ExpressionType.OBJECT
@@ -148,10 +147,10 @@ class TestGuidedSimplify(unittest.TestCase):
 #     assert has_head(rule, Equal)
 #
 #     assert dummies.isdisjoint(target.bound_variables())
-#     assert dummies.isdisjoint(target.free_variables(frozenset()))
+#     assert dummies.isdisjoint(target.free_variables())
 #
 #     assert definitions.isdisjoint(target.bound_variables())
-#     assert definitions.isdisjoint(target.free_variables(frozenset()))
+#     assert definitions.isdisjoint(target.free_variables())
 #
 #     # Recursing on the rule, rather than the target, seems ... kind of
 #     # desperate.  It's only in special cases that you can hope that you'll be

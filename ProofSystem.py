@@ -290,10 +290,6 @@ class Exprs(AddableMapping[EAndP]):
             raise KeyError
         return self._parent[key]
 
-    def __setitem__(self, key: Expression, new_value: EAndP) -> None:
-        assert key is new_value.expr
-        self.add(new_value)
-
     # Used to iterate over all expressions, to see if a newly generated
     # expression is an instance of any of them, meaning the proof is done.
     def __iter__(self) -> Iterator[Expression]:

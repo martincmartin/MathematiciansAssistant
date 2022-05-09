@@ -9,7 +9,16 @@ from MatchAndSubstitute import (
     rename_quantified,
 )
 import Parser
-from Expression import var, sum_, num, forall, ExpressionType, equal, sum_simplifier
+from Expression import (
+    exists,
+    var,
+    sum_,
+    num,
+    forall,
+    ExpressionType,
+    equal,
+    sum_simplifier,
+)
 
 # import typeguard
 
@@ -34,6 +43,7 @@ R = var("R", OBJECT)
 a = var("a", OBJECT)
 _a = var("_a", OBJECT)
 b = var("b", OBJECT)
+_b = var("_b", OBJECT)
 c = var("c", OBJECT)
 d = var("d", OBJECT)
 
@@ -399,12 +409,31 @@ class TestTryRule(unittest.TestCase):
         )
 
     def test_iff_of_equality(self):
-        print("*****+++++ Starting")
         self.assertEqual(
             {ex("7 == 7 + 0")},
             try_rule(
                 forall([a, b, c], ex("a - b == c <==> a == b + c")),
                 ex("7 - 7 == 0"),
+                Direction.FORWARD,
+            ),
+        )
+
+    def test_rename_vars(self):
+        self.assertEqual(
+            set(),
+            try_rule(
+                forall([a, b, c], ex("(a + b) + c == a + (b + c)")),
+                forall(a, exists(b, ex("a + b == 0"))),
+                Direction.FORWARD,
+            ),
+        )
+
+    def test_rename_vars2(self):
+        self.assertEqual(
+            {forall(a, exists(_b, ex("a + (_b + c) == c")))},
+            try_rule(
+                forall([a, b, c], ex("(a + b) + c == a + (b + c)")),
+                forall(a, exists(b, ex("a + b + c == c"))),
                 Direction.FORWARD,
             ),
         )

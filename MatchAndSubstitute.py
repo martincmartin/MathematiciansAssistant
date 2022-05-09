@@ -27,7 +27,7 @@ def match(
 
     This is a very simple, structural match.  It doesn't know anything about
     implies, forall, etc.  Its a simple destructuring bind, where "dummies"
-    are the nodes that count as variables.
+    are the nodes in pattern that count as variables.
 
     "dummies" is the set of Nodes in "pattern" that can match any sub
     expression.
@@ -42,6 +42,8 @@ def match(
 
     if isinstance(pattern, Node):
         if isinstance(pattern, Variable) and pattern.name in dummies:
+            # Caller needs to ensure that either pattern or target has had
+            # variables renamed to avoid conflicts.
             assert pattern not in target.free_variables(frozenset(dummies.values()))
             # Don't match variables against operators.  There's probably a
             # better way to express this, e.g. by introducing an Operator
@@ -257,13 +259,16 @@ def try_rule(
     # output when we don't need to.
 
     # "|" means union.
-    target_vars = target.bound_variables() | {
-        v.name for v in target.free_variables(frozenset())
-    }
+    target_vars = target.bound_variables() | {v.name for v in target.free_variables()}
+
+    print(
+        f"Calling rename_quantified on {forall(dummies.values(), rule)} against {target_vars}"
+    )
 
     quantified: CompositeExpression = rename_quantified(
         forall(dummies.values(), rule), target_vars
     )
+    print(f"back from rename_quantified: {quantified}")
     dummies = quantified.get_variables({})
     rule = quantified[1]
 
@@ -282,9 +287,7 @@ def try_rule(
         rule = cast(CompositeExpression, rule)
         # This should be enforced in the rename_quantifier call above.
         assert dummies.keys().isdisjoint(target.bound_variables())
-        assert dummies.keys().isdisjoint(
-            {v.name for v in target.free_variables(frozenset())}
-        )
+        assert dummies.keys().isdisjoint({v.name for v in target.free_variables()})
 
         # So, we only want to apply this at the top level, i.e.
         # under all the "forall"s, but above everything else.
@@ -292,6 +295,7 @@ def try_rule(
         rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in dummies  # type: ignore
         lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in dummies  # type: ignore
         if not rhs_is_bound_var:
+            # Why do we skip this?  Are we trying to avoid x => x + 0??q
             result = _recursive_match_and_substitute(dummies, rule[2], rule[1], target)
         if not lhs_is_bound_var:
             result = result | (
@@ -306,7 +310,7 @@ def try_rule(
             if has_head(res, ForAll):
                 res = cast(CompositeExpression, res)
                 res_quantified_vars = res[0].get_variables_tree({})
-                free_vars = res[1].free_variables(frozenset())
+                free_vars = res[1].free_variables()
                 vars_to_keep = {
                     variable
                     for variable in res_quantified_vars.values()
@@ -321,7 +325,7 @@ def try_rule(
             common_vars = {
                 variable
                 for _, variable in dummies.items()
-                if variable in res.free_variables(set())
+                if variable in res.free_variables()
             }
             if common_vars:
                 # Optimization: if the head of 'res' is already ForAll,
@@ -392,11 +396,11 @@ def _recursive_match_and_substitute(
     if has_head(target, Quantifier):
         quantified_vars = target.get_variables({})
         # "|" is union
-        free_vars = antecedent.free_variables(set()) | consequent.free_variables(set())
+        free_vars = antecedent.free_variables() | consequent.free_variables()
 
         if not free_vars.isdisjoint({v for v in quantified_vars.values()}):
             # This should have happened outside this recursive method.
-            assert dummies.keys().isdisjoint(quantified_vars)
+            # assert dummies.keys().isdisjoint(quantified_vars)
 
             target = rename_quantified(target, {v.name for v in free_vars})
             quantified_vars = target.get_variables({})
@@ -528,7 +532,7 @@ def _rename_variables(
     taken = set(
         taken
         | expr.bound_variables()
-        | {variable.name for variable in expr.free_variables(frozenset())}
+        | {variable.name for variable in expr.free_variables()}
     )
 
     # Decide on new variable names.

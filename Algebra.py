@@ -15,8 +15,6 @@ from typing import Sequence
 # Save some typing
 OBJECT = ExpressionType.OBJECT
 
-# Need to implement a deduction class for "calc mode."
-
 
 def ex(st: str) -> Expression:
     return Parser.parse(st)
