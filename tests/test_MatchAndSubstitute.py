@@ -73,6 +73,12 @@ class TestMatch(unittest.TestCase):
     def test_node(self):
         self.assertEqual({A: (A + B)}, match({"A": A}, A, A + B))
 
+    def test_basic(self):
+        self.assertEqual(match({"A": A}, ex("3 + 5"), ex("3 + 5")), {})
+        self.assertIsNone(match({"A": A}, ex("3 + 5"), ex("3 + 7")))
+        self.assertIsNone(match({"A": A}, ex("3 + 5"), ex("7 + 5")))
+        self.assertIsNone(match({"A": A}, ex("3 + 5"), ex("3 * 5")))
+
     def test_sum(self):
         self.assertEqual({A: C}, match({"A": A}, A + B, C + B))
 
@@ -96,7 +102,7 @@ class TestMatch(unittest.TestCase):
         )
 
     def test_dummy_appears_twice2(self):
-        self.assertIsNone(match({"A": A}, ex("A in A"), ex("A + B in A + " "C")))
+        self.assertIsNone(match({"A": A}, ex("A in A"), ex("A + B in A + C")))
 
     def test_two_dummies(self):
         self.assertEqual({x: A, y: B}, match({"x": x, "y": y}, x + y, A + B))
@@ -129,6 +135,15 @@ class TestIsInstance(unittest.TestCase):
                 forall((x, y, M), ex("(x + y) * M == x * M + y * M")),
             ),
             {x: A, y: B, M: M},
+        )
+
+    def test_distributed_law2(self):
+        self.assertEqual(
+            is_instance(
+                ex("(A + B) * M == A * M + B * M"),
+                forall((x, y), ex("(x + y) * M == x * M + y * M")),
+            ),
+            {x: A, y: B},
         )
 
 

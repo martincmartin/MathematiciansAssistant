@@ -165,7 +165,7 @@ def doit() -> None:
 
     defM = ex("M == [1 1; 0 1]")
 
-    def helper_0_1_1(defX):
+    def helper_0_1_1(defX: Expression):
         print("!!!!! " + str(defX))
         helper(
             context=[defB, defM, defX],

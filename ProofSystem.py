@@ -179,7 +179,9 @@ class ProofState(Generic[EAndP]):
         assert is_rule(rule)
         assert direction == Direction.FORWARD or direction == Direction.BACKWARD
 
-        exprs = MatchAndSubstitute.try_rule(rule, target.expr, direction)
+        exprs = MatchAndSubstitute.try_rule(
+            rule, target.expr, direction, allow_trivial=False
+        )
 
         if self.verbosity >= 10 or (self.verbosity > 0 and exprs):
             print(f"try_rule: {rule} transformed {target.expr} into {exprs}")

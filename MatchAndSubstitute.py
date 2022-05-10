@@ -27,7 +27,8 @@ def match(
 
     This is a very simple, structural match.  It doesn't know anything about
     implies, forall, etc.  Its a simple destructuring bind, where "dummies"
-    are the nodes in pattern that count as variables.
+    are the nodes in pattern that count as variables.  Variables can match
+    anything of the correct type; everything else must match exactly.
 
     "dummies" is the set of Nodes in "pattern" that can match any sub
     expression.
@@ -36,15 +37,16 @@ def match(
     no match.  Be careful: both the empty dict (meaning there's a match that
     works with any substitution) and None (they don't match no matter what you
     substitute) evaluate as false in Python.
+
+    Note that we don't need to worry about renaming here.  Variables with the
+    same name as dummies can appear in the target, since they're essentially
+    different namespaces.
     """
 
     assert isinstance(target, Expression)
 
     if isinstance(pattern, Node):
         if isinstance(pattern, Variable) and pattern.name in dummies:
-            # Caller needs to ensure that either pattern or target has had
-            # variables renamed to avoid conflicts.
-            assert pattern not in target.free_variables(frozenset(dummies.values()))
             # Don't match variables against operators.  There's probably a
             # better way to express this, e.g. by introducing an Operator
             # type.  But for now, this will do.
@@ -55,7 +57,9 @@ def match(
                     return None
 
             # Can we match this variable against this subtree?  Only if the
-            # types match.
+            # types match.  We should really have unit tests that test that this
+            # assertion is thrown when they variable name is the same, but the
+            # types don't match.
             assert pattern.type() == dummies[pattern.name].type()
             if pattern.type() == ExpressionType.ANY:
                 return {pattern: target}
@@ -140,6 +144,8 @@ def is_instance(
         rule = cast(CompositeExpression, rule)
         return is_instance(expr, rule[1], {**dummies, **rule.get_variables(dummies)})
 
+    # Don't we need to rename any dummies that appear in expr?  Or is match
+    # smart enough to handle that?
     return match(dummies, rule, expr)
 
 
@@ -147,6 +153,7 @@ def try_rule(
     rule: Expression,
     target: Expression,
     direction: Direction,
+    allow_trivial: bool = False,
     dummies: Mapping[str, Variable] = {},
 ) -> Set[Expression]:
     """Apply "rule" to "target", returns any new expressions it generates.
@@ -172,6 +179,8 @@ def try_rule(
     substitution/rewriting for those.
     """
 
+    assert isinstance(allow_trivial, bool)
+
     # So how to handle "calculation mode"?  First example is 7 - 7.  On the one
     # hand, it would be nice to handle it just like any proof, e.g. we have some
     # starting expression in the context, and we have various rules to transform
@@ -196,8 +205,6 @@ def try_rule(
     # "simplify 7-7" but rather "from the premise 7 - 7, derive the target 0",
     # or the goal "7 - 7 == 0"?
 
-    print(f"rule: {rule}, target: {target}, dummies: {dummies}")
-
     assert isinstance(rule, CompositeExpression)
     assert is_rule(rule)
 
@@ -214,6 +221,7 @@ def try_rule(
             rule[1],
             target,
             direction,
+            allow_trivial,
             {**dummies, **rule.get_variables(dummies)},
         )
 
@@ -261,14 +269,9 @@ def try_rule(
     # "|" means union.
     target_vars = target.bound_variables() | {v.name for v in target.free_variables()}
 
-    print(
-        f"Calling rename_quantified on {forall(dummies.values(), rule)} against {target_vars}"
-    )
-
     quantified: CompositeExpression = rename_quantified(
         forall(dummies.values(), rule), target_vars
     )
-    print(f"back from rename_quantified: {quantified}")
     dummies = quantified.get_variables({})
     rule = quantified[1]
 
