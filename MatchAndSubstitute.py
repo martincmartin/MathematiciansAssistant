@@ -297,10 +297,10 @@ def try_rule(
         result: Set[Expression] = set()
         rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in dummies  # type: ignore
         lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in dummies  # type: ignore
-        if not rhs_is_bound_var:
+        if allow_trivial or not rhs_is_bound_var:
             # Why do we skip this?  Are we trying to avoid x => x + 0??q
             result = _recursive_match_and_substitute(dummies, rule[2], rule[1], target)
-        if not lhs_is_bound_var:
+        if allow_trivial or not lhs_is_bound_var:
             result = result | (
                 _recursive_match_and_substitute(dummies, rule[1], rule[2], target)
             )

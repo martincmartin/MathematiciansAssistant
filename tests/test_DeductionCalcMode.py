@@ -81,14 +81,8 @@ class TestHasSubexpression(unittest.TestCase):
 
 class TestTryRule(unittest.TestCase):
     def test_simple(self) -> None:
-        print(
-            DeductionCalcMode(0).try_rule(
-                forall(x, ex("x + 0 == x")), ExprAndParent(x, None), 5
-            )
-        )
-
         self.assertEqual(
-            x + num(0),
+            [x, x + num(0)],
             DeductionCalcMode(0).try_rule(
                 forall(x, ex("x + 0 == x")), ExprAndParent(x, None), 5
             ),

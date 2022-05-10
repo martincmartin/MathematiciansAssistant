@@ -62,6 +62,7 @@ class DeductionCalcMode:
 
     def __init__(self, verbosity: int):
         self.verbosity = verbosity
+        self.equivalents = Exprs([], None)
 
     def try_rule(
         self, rule: Expression, target: ExprAndParent, current_distance: int
@@ -69,7 +70,9 @@ class DeductionCalcMode:
         assert isinstance(rule, CompositeExpression)
         assert is_rule(rule)
 
-        exprs = MatchAndSubstitute.try_rule(rule, target.expr, Direction.FORWARD)
+        exprs = MatchAndSubstitute.try_rule(
+            rule, target.expr, Direction.FORWARD, allow_trivial=True
+        )
         # if exprs:
         print(f"try_rule: {rule} transformed {target} into {exprs}")
 
@@ -79,7 +82,7 @@ class DeductionCalcMode:
                 continue
             move_and_parent = target.__class__(move, target)
 
-            if has_subexpression(move, self.target):
+            if has_subexpression(move, target.expr):
                 return list(reversed(collect_path(move_and_parent)))
 
             self.equivalents.add(move_and_parent)
