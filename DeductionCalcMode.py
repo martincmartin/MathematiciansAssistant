@@ -1,6 +1,6 @@
 from collections import defaultdict
 from collections.abc import Mapping
-from typing import Sequence, Union
+from typing import Optional, Sequence, Union, cast
 
 # from typing import Sequence
 from Expression import CompositeExpression, Expression, Node
@@ -9,11 +9,24 @@ from MatchAndSubstitute import Direction, is_rule
 from ProofSystem import ExprAndParent, Exprs, collect_path
 
 
-def parts(source: Expression) -> Mapping[Expression, int]:
+class DistanceExprAndParent(ExprAndParent):
+    _distance: int
+
+    def __init__(
+        self, expr: Expression, parent: Optional["DistanceExprAndParent"], distance: int
+    ) -> None:
+        super().__init__(expr, parent)
+        self._distance = distance
+
+    def __repr__(self) -> str:
+        return f"{self._expr} ({self._distance}) & parent"
+
+
+def parts(source: Expression) -> Mapping[Node, int]:
     if isinstance(source, Node):
         return {source: 1}
 
-    result: Mapping[Expression, int] = defaultdict(int)
+    result: Mapping[Node, int] = defaultdict(int)
     assert isinstance(source, CompositeExpression)
     for child in source:
         for key, value in parts(child).items():
@@ -22,24 +35,27 @@ def parts(source: Expression) -> Mapping[Expression, int]:
     return result
 
 
-def distance(source: Expression, desired_subexpression: Expression) -> int:
+def missing(
+    source: Expression, desired_subexpression: Expression
+) -> Mapping[Node, int]:
     # For now, we just count the type of each node in desired_subexpression,
     # and return how many of each type that we're missing.
     #
-    # So basically we collapse all CompositeExpressions into a set.  Ok, let's
-    # give it a try.
+    # So basically we collapse all CompositeExpressions into a multiset.  Ok,
+    # let's give it a try.
 
     source_parts = parts(source)
 
-    total = 0
-
+    result: Mapping[Node, int] = defaultdict(int)
     for part, count in parts(desired_subexpression).items():
         if part in source_parts:
-            total += max(count - source_parts[part], 0)
+            diff = count - source_parts[part]
+            if diff > 0:
+                result[part] = diff
         else:
-            total += count
+            result[part] = count
 
-    return total
+    return result
 
 
 def has_subexpression(expr: Expression, subexpr: Expression) -> bool:
@@ -56,16 +72,17 @@ def has_subexpression(expr: Expression, subexpr: Expression) -> bool:
 
 
 class DeductionCalcMode:
-    equivalents: Exprs[ExprAndParent]
-    target: Expression
+    equivalents: Exprs[DistanceExprAndParent]
+    desired_subexpression: Expression
     verbosity: int
 
-    def __init__(self, verbosity: int):
+    def __init__(self, desired_subexpression: Expression, verbosity: int):
         self.verbosity = verbosity
+        self.desired_subexpression = desired_subexpression
         self.equivalents = Exprs([], None)
 
     def try_rule(
-        self, rule: Expression, target: ExprAndParent, current_distance: int
+        self, rule: Expression, target: DistanceExprAndParent
     ) -> Union[bool, Sequence[Expression]]:
         assert isinstance(rule, CompositeExpression)
         assert is_rule(rule)
@@ -80,7 +97,10 @@ class DeductionCalcMode:
         for move in exprs:
             if move in self.equivalents:
                 continue
-            move_and_parent = target.__class__(move, target)
+            move_and_parent = target.__class__(
+                move, target, sum(missing(move, self.desired_subexpression).values())
+            )
+            print(move_and_parent)
 
             if has_subexpression(move, target.expr):
                 return list(reversed(collect_path(move_and_parent)))
@@ -89,12 +109,3 @@ class DeductionCalcMode:
             added = True
 
         return added
-
-
-def transform_to_subexpression(
-    start: Expression, desired_subexpression: Expression, rules: Sequence[Expression]
-):
-    start_distance = distance(start, desired_subexpression)
-
-    for rule in rules:
-        try_rule(rule, start, start_distance)

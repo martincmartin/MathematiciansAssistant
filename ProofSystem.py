@@ -253,10 +253,11 @@ class SimplifyObject:
 
 
 class Exprs(AddableMapping[EAndP]):
-    """Mutable collection of ExprAndParent subclasses.  Given an Expr (that
-    you just generated), can tell you whether it's already been generated,
-    and gives you the ExprAndParent.  Also allows you to iterate over the
-    exprs."""
+    """
+    Mutable collection of ExprAndParent subclasses.  Given an Expr (that you
+    just generated), can tell you whether it's already been generated, and gives
+    you the ExprAndParent.  Also allows you to iterate over the exprs.
+    """
 
     _exprs_map: MutableMapping[Expression, EAndP]
     _parent: Optional[Exprs[EAndP]]
