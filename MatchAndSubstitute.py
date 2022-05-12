@@ -61,20 +61,11 @@ def match(
             # assertion is thrown when they variable name is the same, but the
             # types don't match.
             assert pattern.type() == dummies[pattern.name].type()
-            if pattern.type() == ExpressionType.ANY:
-                return {pattern: target}
             target_type = target.type()
             # We need a better way of expressing the type hierarchy.  But for
             # now: a number literal is a math object, a proposition is NOT a
             # math object, and ANY matches anything.
-            if (
-                target_type == ExpressionType.ANY
-                or pattern.type() == target_type
-                or (
-                    pattern.type() == ExpressionType.OBJECT
-                    and target_type == ExpressionType.NUMBER_LITERAL
-                )
-            ):
+            if assignable(pattern.type(), target_type):
                 return {pattern: target}
             else:
                 return None
@@ -298,7 +289,6 @@ def try_rule(
         rhs_is_bound_var = isinstance(rule[2], Variable) and rule[2].name in dummies  # type: ignore
         lhs_is_bound_var = isinstance(rule[1], Variable) and rule[1].name in dummies  # type: ignore
         if allow_trivial or not rhs_is_bound_var:
-            # Why do we skip this?  Are we trying to avoid x => x + 0??q
             result = _recursive_match_and_substitute(dummies, rule[2], rule[1], target)
         if allow_trivial or not lhs_is_bound_var:
             result = result | (

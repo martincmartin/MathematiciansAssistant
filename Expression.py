@@ -72,6 +72,17 @@ class ExpressionType(Enum):
     PROPOSITION = 4
 
 
+def assignable(destination: ExpressionType, source: ExpressionType) -> bool:
+    return (
+        destination == source
+        or destination == ExpressionType.ANY
+        or (
+            source == ExpressionType.NUMBER_LITERAL
+            and destination == ExpressionType.OBJECT
+        )
+    )
+
+
 @total_ordering
 @unique
 class Precedence(Enum):

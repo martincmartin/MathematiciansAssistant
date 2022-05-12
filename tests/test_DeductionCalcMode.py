@@ -111,3 +111,16 @@ class TestTryRule(unittest.TestCase):
         # specifically that we're looking for a 3.  In other words, we don't
         # want to think of the distance as a number, more as a multiset of
         # missing Nodes, implemented as dict from Node to count.
+
+        closest = ex("x + 0")
+        nodes_needed = missing(closest, desired_subexpression)
+        # The only thing missing is a single 3.
+        #
+        # So now we need to look for a premise that (a) matches closest, and (b)
+        # introduces a variable under "forall a".  Then we can replace the a
+        # with 3.
+        #
+        # Actually, try_rule adds the "forall" for us.  So given "x + 0",
+        # try_rule() will produce "forall(a), x + (a + -a)".  So in general,
+        # when we're looking for a mathematical object (as opposed to an
+        # operator), we can try substituting it into a forall.

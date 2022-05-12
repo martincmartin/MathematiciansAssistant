@@ -25,6 +25,7 @@ from Expression import (
 OBJECT = ExpressionType.OBJECT
 PROPOSITION = ExpressionType.PROPOSITION
 NUMBER_LITERAL = ExpressionType.NUMBER_LITERAL
+ANY = ExpressionType.ANY
 
 A = var("A", OBJECT)
 _A = var("_A", OBJECT)
@@ -59,14 +60,17 @@ z = var("z", OBJECT)
 xl = var("x", NUMBER_LITERAL)
 yl = var("y", NUMBER_LITERAL)
 
+xa = var("x", ANY)
+ya = var("y", ANY)
+
+xp = var("x", PROPOSITION)
+yp = var("y", PROPOSITION)
+
 sum_simplifier_rule = forall((xl, yl), equal(xl + yl, sum_simplifier(xl, yl)))
 
 
 def ex(string: str):
     return Parser.parse(string)
-
-
-ANY = ExpressionType.ANY
 
 
 class TestMatch(unittest.TestCase):
@@ -115,6 +119,42 @@ class TestMatch(unittest.TestCase):
             match({"a": a, "b": b, "c": c, "d": d}, ex("[a b; c d]"), ex("[1 2; 3 4]")),
             {a: num(1), b: num(2), c: num(3), d: num(4)},
         )
+
+
+class TestMatchTypes(unittest.TestCase):
+    def test_any_aganist_all(self):
+        self.assertEqual(match({"x": xa}, xa, xa), {xa: xa})
+        self.assertEqual(match({"x": xa}, xa, P), {xa: P})
+        self.assertEqual(match({"x": xa}, xa, x), {xa: x})
+        self.assertEqual(match({"x": xa}, xa, xl), {xa: xl})
+
+    def test_all_against_any(self):
+        # Any vs any is handled in test_any_against_all, and is allowed.
+        for myvar in [xp, x, xl]:
+            self.assertIsNone(match({"x": myvar}, myvar, xa))
+
+    def test_same(self):
+        # Any vs any is handled in test_any_against_all
+        for myvar in [xp, x, xl]:
+            self.assertEqual(match({"x": myvar}, myvar, myvar), {myvar: myvar})
+
+    def test_proposition_object(self):
+        self.assertEqual(match({"x": xp}, xp, x + y), None)
+
+    def test_object_proposition(self):
+        self.assertEqual(match({"x": x}, x, xp), None)
+
+    def test_proposition_number_literal(self):
+        self.assertEqual(match({"x": xp}, xp, num(23)), None)
+
+    def test_number_literal_proposition(self):
+        self.assertEqual(match({"x": xl}, xl, P), None)
+
+    def test_object_number_literal(self):
+        self.assertEqual(match({"x": x}, x, num(23)), {x: num(23)})
+
+    def test_number_literal_object(self):
+        self.assertEqual(match({"x": xl}, xl, x), None)
 
 
 class TestIsInstance(unittest.TestCase):
@@ -451,6 +491,12 @@ class TestTryRule(unittest.TestCase):
                 forall(a, exists(b, ex("a + b + c == c"))),
                 Direction.FORWARD,
             ),
+        )
+
+    def test_introduce_var(self):
+        self.assertEqual(
+            try_rule(forall(a, ex("a + -a == 0")), x + num(0), Direction.FORWARD, True),
+            {forall(a, ex("x + (a + -a)"))},
         )
 
 
