@@ -1,10 +1,21 @@
 # Run using:
 # python3 -m unittest tests/test_DeductionCalcMode.py
 import unittest
+import MatchAndSubstitute
 
 import Parser
 
-from Expression import Expression, Negative, forall, var, num, ExpressionType, Sum
+from Expression import (
+    sum_simplifier,
+    equal,
+    Expression,
+    Negative,
+    forall,
+    var,
+    num,
+    ExpressionType,
+    Sum,
+)
 
 from DeductionCalcMode import (
     DeductionCalcMode,
@@ -12,13 +23,23 @@ from DeductionCalcMode import (
     has_subexpression,
     parts,
     missing,
+    try_forall_elimination,
 )
 
 OBJECT = ExpressionType.OBJECT
 NUMBER_LITERAL = ExpressionType.NUMBER_LITERAL
 
 x = var("x", OBJECT)
-y = var("y", NUMBER_LITERAL)
+
+xl = var("x", NUMBER_LITERAL)
+yl = var("y", NUMBER_LITERAL)
+
+
+a = var("a", OBJECT)
+b = var("b", OBJECT)
+c = var("c", OBJECT)
+
+FORWARD = MatchAndSubstitute.Direction.FORWARD
 
 
 def ex(string: str) -> Expression:
@@ -61,11 +82,11 @@ class TestMissing(unittest.TestCase):
 class TestHasSubexpression(unittest.TestCase):
     def test_var(self) -> None:
         self.assertTrue(has_subexpression(x, x))
-        self.assertTrue(has_subexpression(x + y, x))
-        self.assertTrue(has_subexpression(x + y, y))
+        self.assertTrue(has_subexpression(x + yl, x))
+        self.assertTrue(has_subexpression(x + yl, yl))
 
-        self.assertFalse(has_subexpression(x, y))
-        self.assertFalse(has_subexpression(ex("x * x"), y))
+        self.assertFalse(has_subexpression(x, yl))
+        self.assertFalse(has_subexpression(ex("x * x"), yl))
 
     def test_number_literal(self) -> None:
         self.assertTrue(has_subexpression(ex("3 + 5"), num(3)))
@@ -84,6 +105,23 @@ class TestHasSubexpression(unittest.TestCase):
         self.assertFalse(has_subexpression(ex("x + (3 + -3)"), ex("x + 3")))
 
 
+class TestForallElimination(unittest.TestCase):
+    def test_not_forall(self) -> None:
+        self.assertEqual(try_forall_elimination(ex("2 + 3"), num(2)), set())
+
+    def test_simple(self) -> None:
+        self.assertEqual(
+            try_forall_elimination(forall(a, ex("x + (a + -a)")), num(3)),
+            {ex("x + (3 + -3)")},
+        )
+
+    def test_multi(self) -> None:
+        self.assertEqual(
+            try_forall_elimination(forall([a, x], ex("x + (a + -a)")), num(3)),
+            {forall(x, ex("x + (3 + -3)")), forall(a, ex("3 + (a + -a)"))},
+        )
+
+
 class TestTryRule(unittest.TestCase):
     def test_first_step(self) -> None:
         self.assertEqual(
@@ -93,34 +131,54 @@ class TestTryRule(unittest.TestCase):
             ),
         )
 
-    def test_more_steps(self) -> None:
+    def test_second_step(self) -> None:
+        # Convert x + 0 to x + (3 + -3).
         desired_subexpression = ex("x + 3")
-        deduction = DeductionCalcMode(desired_subexpression, 0)
+        start_expression = ex("x + 0")
 
-        identity = forall(x, ex("x + 0 == x"))
+        still_need = missing(start_expression, desired_subexpression)
+        self.assertEqual(still_need, {num(3): 1})
 
-        nodes_needed = missing(x, desired_subexpression)
+        rule = forall(a, ex("a + -a == 0"))
 
-        start = DistanceExprAndParent(x, None, sum(nodes_needed.values()))
+        # Now need to apply 0 -> a + -a.  What's the motivation for that?  Just
+        # that there isn't a "3" in any expression in the context, so we need to
+        # introduce a forall to eliminate it?  Or we can always fall back on
+        # brute search: try everything in the context, notice a forall is
+        # introduced, then try forall elimination.
+        exprs = MatchAndSubstitute.try_rule(rule, start_expression, FORWARD, True)
+        self.assertEqual(exprs, {forall(a, ex("x + (a + -a)"))})
 
-        deduction.try_rule(identity, start)
+        next_expression = next(iter(exprs))
+        self.assertEqual(next_expression, forall(a, ex("x + (a + -a)")))
 
-        # Now we need to turn 0 into 3 + -3.  I don't think this can be done by
-        # treating the distance function as a black box, as we'll never get the
-        # idea to try substituting 3 into a + -a that way.  So we need to know
-        # specifically that we're looking for a 3.  In other words, we don't
-        # want to think of the distance as a number, more as a multiset of
-        # missing Nodes, implemented as dict from Node to count.
+        exprs = try_forall_elimination(next_expression, num(3))
+        self.assertEqual(exprs, {ex("x + (3 + -3)")})
+        self.assertFalse(has_subexpression(next(iter(exprs)), desired_subexpression))
 
-        closest = ex("x + 0")
-        nodes_needed = missing(closest, desired_subexpression)
-        # The only thing missing is a single 3.
-        #
-        # So now we need to look for a premise that (a) matches closest, and (b)
-        # introduces a variable under "forall a".  Then we can replace the a
-        # with 3.
-        #
-        # Actually, try_rule adds the "forall" for us.  So given "x + 0",
-        # try_rule() will produce "forall(a), x + (a + -a)".  So in general,
-        # when we're looking for a mathematical object (as opposed to an
-        # operator), we can try substituting it into a forall.
+    def test_third_step(self) -> None:
+        # Convert x + (3 + -3) into (x + 3) + -3.
+        desired_subexpression = ex("x + 3")
+        start_expression = ex("x + (3 + -3)")
+
+        associative = forall([a, b, c], ex("(a + b) + c == a + (b + c)"))
+
+        exprs = MatchAndSubstitute.try_rule(associative, start_expression, FORWARD)
+
+        self.assertEqual(exprs, {ex("(x + 3) + -3")})
+        self.assertTrue(has_subexpression(next(iter(exprs)), desired_subexpression))
+
+    def test_fourth_step(self) -> None:
+        # Convert (x + 3) + -3 into 5 + -3.
+        start_expression = ex("(x + 3) + -3")
+
+        given = ex("x + 3 == 5")
+
+        exprs = MatchAndSubstitute.try_rule(given, start_expression, FORWARD)
+        self.assertEqual(exprs, {ex("5 + -3")})
+
+        sum_simplifier_rule = forall((xl, yl), equal(xl + yl, sum_simplifier(xl, yl)))
+        self.assertEqual(
+            MatchAndSubstitute.try_rule(sum_simplifier_rule, ex("5 + -3"), FORWARD),
+            {num(2)},
+        )

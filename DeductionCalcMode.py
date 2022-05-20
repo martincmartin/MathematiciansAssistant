@@ -1,9 +1,17 @@
 from collections import defaultdict
 from collections.abc import Mapping
-from typing import Optional, Sequence, Union, cast
+from typing import MutableSet, Optional, Sequence, Set, Union, cast
 
 # from typing import Sequence
-from Expression import CompositeExpression, Expression, Node
+from Expression import (
+    CompositeExpression,
+    Expression,
+    ForAll,
+    Node,
+    assignable,
+    forall,
+    has_head,
+)
 import MatchAndSubstitute
 from MatchAndSubstitute import Direction, is_rule
 from ProofSystem import ExprAndParent, Exprs, collect_path
@@ -69,6 +77,38 @@ def has_subexpression(expr: Expression, subexpr: Expression) -> bool:
             if has_subexpression(child, subexpr):
                 return True
     return False
+
+
+def try_forall_elimination(
+    quantified: Expression, value: Expression
+) -> Set[Expression]:
+    """
+    Kind of like try_rule, in that it generates expressions that we hope are
+    steps along a proof.  However, this generates them by substituting the given
+    value into a universally quantified expression.  Might return empty set if
+    types don't match, or "quantified" isn't actually a forall.
+    """
+    if not has_head(quantified, ForAll):
+        return set()
+
+    result: MutableSet[Expression] = set()
+    quantified = cast(CompositeExpression, quantified)
+    # If forall has a single variable, we're eliminating the forall.  Otherwise,
+    # we just eliminating one variable in it.
+    vars = quantified.get_variables({}).values()
+    for myvar in vars:
+        if not assignable(myvar.type(), value.type()):
+            continue
+        subed = MatchAndSubstitute.substitute({myvar: value}, quantified[1])
+        if subed != quantified[1]:
+            if len(vars) == 1:
+                result.add(subed)
+            else:
+                remaining = [var for var in vars if var != myvar]
+                assert len(remaining) == len(vars) - 1
+                result.add(forall(remaining, subed))
+
+    return result
 
 
 class DeductionCalcMode:

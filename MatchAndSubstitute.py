@@ -355,7 +355,7 @@ def match_and_substitute(
 
     subs = match(dummies, antecedent, target)
     if subs is not None:
-        return {_substitute(subs, consequent)}
+        return {substitute(subs, consequent)}
     return set()
 
 
@@ -379,7 +379,7 @@ def _recursive_match_and_substitute(
 
     subs = match(dummies, antecedent, target)
     if subs is not None:
-        result.add(_substitute(subs, consequent))
+        result.add(substitute(subs, consequent))
 
     if isinstance(target, Node):
         return result
@@ -412,7 +412,7 @@ def _recursive_match_and_substitute(
     return result
 
 
-def _substitute(subs: Mapping[Variable, Expression], expr: Expression) -> Expression:
+def substitute(subs: Mapping[Variable, Expression], expr: Expression) -> Expression:
     """Perform the substitutions given by subs on expr."""
 
     # What to do about unsubstituted dummies??  I guess just add a
@@ -439,11 +439,8 @@ def _substitute(subs: Mapping[Variable, Expression], expr: Expression) -> Expres
 
     expr = cast(CompositeExpression, expr)
 
-    # Actually, this does the wrong thing for quantifiers, since the quantified
-    # over variable shadows any instance in what we're trying to substitute.
-    # Hmm.
-    # Should I just disallow shadowing?
-    subed = [_substitute(subs, e) for e in expr]
+    # Note that this is ok, because I disallow shadowing.
+    subed = [substitute(subs, e) for e in expr]
 
     head = subed[0]
     if isinstance(head, SumSimplifier):
@@ -535,4 +532,4 @@ def _rename_variables(
         taken.add(new_var.name)
         subs[old_var] = new_var
 
-    return _substitute(subs, expr)
+    return substitute(subs, expr)

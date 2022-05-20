@@ -9,7 +9,7 @@ MatchAndSubstitute.py: Pattern matching and substitution functions on
 
 ***** Deduction
 
-All of these are build on Expression and MatchAndSubstitute.
+All of these are built on Expression and MatchAndSubstitute.
 
 ProofSystem.py: Common code from different Deduction files, e.g. ExprAndParent.
 

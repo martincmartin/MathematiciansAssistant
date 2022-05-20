@@ -20,7 +20,6 @@ particular search technique.
 
 from __future__ import annotations
 from abc import abstractmethod
-
 from collections.abc import Mapping, MutableMapping, Sequence, Iterator
 
 from Expression import Expression, CompositeExpression
