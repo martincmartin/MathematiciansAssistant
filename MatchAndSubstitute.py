@@ -443,7 +443,7 @@ def substitute(subs: Mapping[Variable, Expression], expr: Expression) -> Express
     subed = [substitute(subs, e) for e in expr]
 
     head = subed[0]
-    if isinstance(head, SumSimplifier):
+    if isinstance(head, Simplifier):
         total = head.simplify(subed[1:])
         return NumberLiteral(total)
 

@@ -7,6 +7,8 @@ import Parser
 
 from Expression import (
     sum_simplifier,
+    negative,
+    negative_simplifier,
     equal,
     Expression,
     Negative,
@@ -177,8 +179,18 @@ class TestTryRule(unittest.TestCase):
         exprs = MatchAndSubstitute.try_rule(given, start_expression, FORWARD)
         self.assertEqual(exprs, {ex("5 + -3")})
 
+        negative_simplifier_rule = forall(
+            xl, equal(negative(xl), negative_simplifier(xl))
+        )
+        self.assertEqual(
+            MatchAndSubstitute.try_rule(
+                negative_simplifier_rule, ex("5 + -3"), FORWARD
+            ),
+            {num(5) + num(-3)},
+        )
+
         sum_simplifier_rule = forall((xl, yl), equal(xl + yl, sum_simplifier(xl, yl)))
         self.assertEqual(
-            MatchAndSubstitute.try_rule(sum_simplifier_rule, ex("5 + -3"), FORWARD),
+            MatchAndSubstitute.try_rule(sum_simplifier_rule, num(5) + num(-3), FORWARD),
             {num(2)},
         )

@@ -715,19 +715,38 @@ class NumberLiteral(Node):
 # All arguments must be number literals.  This node just represents the sum of
 # all its arguments.  This is used for simplifying, i.e. 3 + 8 can be
 # simplified, but 3 + x can't.
-class SumSimplifier(Node):
+class Simplifier(Node, abc.ABC):
     def arg_type(self):
+        # Wait, shouldn't this be NUMBER_LITERAL?
         return ExpressionType.OBJECT
 
     def type(self) -> ExpressionType:
         return ExpressionType.OBJECT
 
+    @abc.abstractmethod
+    def simplify(self, args: Sequence[Expression]) -> NumberT:
+        pass
+
+
+class SumSimplifier(Simplifier):
     def simplify(self, args: Sequence[Expression]) -> NumberT:
         assert all(isinstance(arg, NumberLiteral) for arg in args)
         return sum(cast(NumberLiteral, arg).value for arg in args)
 
     def __repr__(self):
         return "SumSimplifier"
+
+
+# Like SumSimplifier, but for unary prefix minus.
+class NegativeSimplifier(Simplifier):
+    def simplify(self, args: Sequence[Expression]) -> NumberT:
+        assert len(args) == 1
+        arg = next(iter(args))
+        assert isinstance(arg, NumberLiteral)
+        return -arg.value
+
+    def __repr__(self):
+        return "NegativeSimplifier"
 
 
 def makefn(clz: builtins.type[Expression], name: str = ""):
@@ -753,6 +772,7 @@ not_ = makefn(Not, "not_")
 list_literal = makefn(ListLiteral, "list_literal")
 matrix_literal = makefn(MatrixLiteral)
 sum_simplifier = makefn(SumSimplifier)
+negative_simplifier = makefn(NegativeSimplifier)
 
 
 def var(name: str, typ: Optional[ExpressionType]) -> Variable:

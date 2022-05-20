@@ -10,6 +10,8 @@ from MatchAndSubstitute import (
 )
 import Parser
 from Expression import (
+    negative,
+    negative_simplifier,
     exists,
     var,
     sum_,
@@ -67,6 +69,7 @@ xp = var("x", PROPOSITION)
 yp = var("y", PROPOSITION)
 
 sum_simplifier_rule = forall((xl, yl), equal(xl + yl, sum_simplifier(xl, yl)))
+negative_simplifier_rule = forall(xl, equal(negative(xl), negative_simplifier(xl)))
 
 
 def ex(string: str):
@@ -461,6 +464,11 @@ class TestTryRule(unittest.TestCase):
         self.assertEqual(
             {ex("12 + 23")},
             try_rule(sum_simplifier_rule, ex("5 + 7 + 23"), Direction.FORWARD),
+        )
+
+    def test_negative_simplifier_basic(self):
+        self.assertEqual(
+            {num(-3)}, try_rule(negative_simplifier_rule, ex("- 3"), Direction.FORWARD)
         )
 
     def test_iff_of_equality(self):
